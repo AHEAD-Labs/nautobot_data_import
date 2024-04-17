@@ -63,7 +63,7 @@ class Sevone_Onboarding(Job):
 
     def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
         """Fetch devices from SevOne API using credentials from a secret."""
-        secret = sevone_credentials.get_value()  # Automatically decrypts the secret
+        secret = sevone_credentials.get_secret_value()  # Automatically decrypts the secret
         username, password = secret['username'], secret['password']
 
         creds = {'name': username, 'password': password}
