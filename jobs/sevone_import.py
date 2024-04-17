@@ -1,5 +1,6 @@
 import logging
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
+rom nautobot.extras.secrets.exceptions import SecretError
 from nautobot.apps.jobs import Job, StringVar, IntegerVar, ObjectVar, register_jobs
 
 
@@ -87,10 +88,7 @@ class Sevone_Onboarding(Job):
 
             return devices_response.json()['content']
 
-        except SecretsGroup.SecretsGroupAccessTypeChoices.DoesNotExist:
-            self.log_failure("The necessary secret configuration does not exist in the group.")
-            return []
-        except Exception as e:
+        except SecretError as e:
             self.log_failure(f"An unexpected error occurred: {str(e)}")
             return []
 
