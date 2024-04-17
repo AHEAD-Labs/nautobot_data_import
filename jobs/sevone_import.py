@@ -21,7 +21,7 @@ class Sevone_Onboarding(Job):
         default="SEVONE"
     )
 
-    def run(self, data, commit, sevone_api_url, sevone_credentials):
+    def run(self, sevone_api_url, sevone_credentials):
         logger.info("Starting device onboarding process.", extra={"grouping": "run", "object": self.job_result})
 
         try:
