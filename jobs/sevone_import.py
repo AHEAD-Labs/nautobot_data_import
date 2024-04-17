@@ -1,7 +1,7 @@
 import logging
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
 from nautobot.apps.jobs import Job, StringVar, IntegerVar, ObjectVar, register_jobs
-
+from nautobot.extras.secrets.exceptions import SecretError
 
 logger = logging.getLogger("nautobot.jobs.Sevone_Onboarding")
 class Sevone_Onboarding(Job):
@@ -64,7 +64,6 @@ class Sevone_Onboarding(Job):
     def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
         """Fetch devices from SevOne API using credentials from a secret."""
         try:
-            # Fetching username and password from secrets
             username = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='Username')
             password = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='Password')
 
@@ -73,7 +72,7 @@ class Sevone_Onboarding(Job):
                                           headers={'Content-Type': 'application/json'})
 
             if auth_response.status_code != 200:
-                self. logger.error("Authentication failed!")
+                logger.error("Authentication failed!")
                 return []
 
             token = auth_response.json()['token']
@@ -82,13 +81,16 @@ class Sevone_Onboarding(Job):
 
             devices_response = session.get(f"{sevone_api_url}/devices?page=0&size=10000")
             if devices_response.status_code != 200:
-                self. logger.error("Failed to fetch devices!")
+                logger.error("Failed to fetch devices!")
                 return []
 
             return devices_response.json()['content']
 
+        except SecretError as e:
+            logger.error(f"Failed to retrieve secrets: {str(e)}")
+            return []
         except Exception as e:
-            self. logger.error(f"An unexpected error occurred: {str(e)}")
+            logger.error(f"An unexpected error occurred: {str(e)}")
             return []
 
     def process_devices(self, devices):
