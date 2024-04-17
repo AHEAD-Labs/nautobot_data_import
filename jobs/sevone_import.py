@@ -1,6 +1,9 @@
+import logging
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
 from nautobot.apps.jobs import Job, StringVar, IntegerVar, ObjectVar, register_jobs
 
+
+logger = logging.getLogger("nautobot.jobs.Sevone_Onboarding")
 class Sevone_Onboarding(Job):
     class Meta:
         name = "Device Onboarding from sevOne"
@@ -18,11 +21,18 @@ class Sevone_Onboarding(Job):
         default="SEVONE"
     )
 
-    def run(self, sevone_api_url, sevone_credentials):
-        """Main execution block for the Job."""
-        self.log_info(message="Starting device onboarding process.")
-        devices = self.fetch_devices_from_sevone(sevone_api_url, sevone_credentials)
-        self.process_devices(devices)
+    def run(self, data, commit, sevone_api_url, sevone_credentials):
+        logger.info("Starting device onboarding process.", extra={"grouping": "run", "object": self.job_result})
+
+        try:
+            devices = self.fetch_devices_from_sevone(sevone_api_url, sevone_credentials)
+            if devices:
+                self.process_devices(devices)
+            else:
+                logger.error("No devices fetched from SevOne.", extra={"grouping": "fetch_devices", "object": self.job_result})
+        except Exception as e:
+            logger.error(f"An error occurred: {str(e)}", extra={"grouping": "error", "object": self.job_result})
+            raise
 
     def check_device_exists(self, ip):
         """Check if a device with the given IP address exists in Nautobot using GraphQL."""
