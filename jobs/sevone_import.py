@@ -14,14 +14,22 @@ class Sevone_Onboarding(Job):
     sevone_credentials = ObjectVar(
         model=SecretsGroup,
         description="SevOne API Credentials",
-        display_field='name'
+        display_field='name',
+        default="SEVONE"
     )
 
-    def run(self, data, commit, sevone_api_url, sevone_credentials):
-        """Main execution block for the Job."""
-        self.log_info(message="Starting device onboarding process.")
-        devices = self.fetch_devices_from_sevone()
-        self.process_devices(devices)
+    def run(self, data, commit):
+        sevone_api_url = self.sevone_api_url
+        sevone_credentials = self.sevone_credentials
+
+        self.log_info(message=f"Using SevOne API URL: {sevone_api_url}")
+        if sevone_credentials:
+            self.log_info(message=f"Using credentials: {sevone_credentials.name}")
+
+        if commit:
+            self.log_success(message="Changes have been committed.")
+        else:
+            self.log_warning(message="Running in no-commit mode.")
 
     def check_device_exists(self, ip):
         """Check if a device with the given IP address exists in Nautobot using GraphQL."""
