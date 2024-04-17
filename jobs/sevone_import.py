@@ -3,9 +3,6 @@ import requests
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
 from nautobot.apps.jobs import Job, StringVar, ObjectVar, register_jobs
 
-logger = logging.getLogger("nautobot.jobs.Sevone_Onboarding")
-
-
 class Sevone_Onboarding(Job):
     class Meta:
         name = "Device Onboarding from sevOne"
