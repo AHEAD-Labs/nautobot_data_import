@@ -7,7 +7,8 @@ class Sevone_Onboarding(Job):
         description = "Onboards devices from SevOne by fetching and processing their details."
 
     sevone_api_url = StringVar(
-        description="URL of the SevOne API"
+        description="URL of the SevOne API",
+        default="http://gbsasev-pas01/"
     )
 
     sevone_credentials = ObjectVar(
@@ -16,7 +17,7 @@ class Sevone_Onboarding(Job):
         display_field='name'
     )
 
-    def run(self, data, commit):
+    def run(self, data, commit, sevone_api_url, sevone_credentials):
         """Main execution block for the Job."""
         self.log_info(message="Starting device onboarding process.")
         devices = self.fetch_devices_from_sevone()
