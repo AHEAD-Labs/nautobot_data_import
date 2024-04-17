@@ -1,4 +1,4 @@
-from nautobot.extras.models import GraphQLQuery, Secret
+from nautobot.extras.models import GraphQLQuery, SecretsGroup
 from nautobot.apps.jobs import Job, StringVar, IntegerVar, ObjectVar, register_jobs
 
 class Sevone_Onboarding(Job):
@@ -11,7 +11,7 @@ class Sevone_Onboarding(Job):
     )
 
     sevone_credentials = ObjectVar(
-        model=Secret,
+        model=SecretsGroup,
         description="SevOne API Credentials",
         display_field='name'
     )
