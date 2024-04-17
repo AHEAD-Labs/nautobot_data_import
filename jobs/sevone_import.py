@@ -1,8 +1,10 @@
-import requests
+from nautobot.extras.jobs import Job, StringVar, ObjectVar, register_jobs, get_task_logger
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
-from nautobot.apps.jobs import Job, StringVar, ObjectVar, register_jobs, get_task_logger
+import requests
 
+# Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
+
 class Sevone_Onboarding(Job):
     class Meta:
         name = "Device Onboarding from sevOne"
@@ -27,7 +29,7 @@ class Sevone_Onboarding(Job):
             if devices:
                 return self.process_devices(devices)
             else:
-                logger.info("No devices fetched from SevOne after API call.")
+                logger.info("No devices fetched from SevOne.")
                 return "No devices were found."
         except Exception as e:
             logger.error(f"An error occurred: {str(e)}")
@@ -38,16 +40,14 @@ class Sevone_Onboarding(Job):
         try:
             username = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='Username')
             password = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='Password')
+
             creds = {'name': username, 'password': password}
             logger.debug(f"Attempting to authenticate with SevOne API at {sevone_api_url}")
-
-            auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds,
-                                          headers={'Content-Type': 'application/json'})
+            auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds, headers={'Content-Type': 'application/json'})
             if auth_response.status_code != 200:
                 logger.error("Authentication failed!", extra={'response': auth_response.text})
                 return []
 
-            logger.debug("Authentication successful.")
             token = auth_response.json()['token']
             session = requests.Session()
             session.headers.update({'Content-Type': 'application/json', 'X-AUTH-TOKEN': token})
@@ -58,9 +58,7 @@ class Sevone_Onboarding(Job):
                 logger.error("Failed to fetch devices!", extra={'response': devices_response.text})
                 return []
 
-            devices = devices_response.json()
-            logger.debug(f"Fetched {len(devices)} devices.")
-            return devices
+            return devices_response.json()
 
         except Exception as e:
             logger.error(f"An unexpected error occurred during fetch from SevOne: {str(e)}")
@@ -101,6 +99,5 @@ class Sevone_Onboarding(Job):
         result = GraphQLQuery(query=query, variables=variables).execute()
         data = result.get('data', {}).get('ip_addresses', [])
         return bool(data)
-
 
 register_jobs(Sevone_Onboarding)
