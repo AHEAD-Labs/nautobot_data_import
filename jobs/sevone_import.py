@@ -1,6 +1,8 @@
 import logging
 import requests
-from nautobot.extras.jobs import Job, StringVar, ObjectVar, register_jobs, get_task_logger
+from celery.utils.log import get_task_logger
+from nautobot.apps.jobs import Job, register_jobs
+from nautobot.extras.jobs import StringVar, ObjectVar
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
 
 # Setup the logger using Nautobot's get_task_logger function
