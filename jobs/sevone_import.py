@@ -63,9 +63,12 @@ class Sevone_Onboarding(Job):
 
     def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
         """Fetch devices from SevOne API using credentials from a secret."""
-        secret = sevone_credentials.get_secret_value()  # Automatically decrypts the secret
-        username, password = secret['username'], secret['password']
+        # You need to specify the access_type and secret_type that match your configuration
+        access_type = 'Generic'  # Placeholder, replace with the actual access type needed
+        secret_type = 'API'  # Placeholder, replace with the actual secret type needed
+        secret = sevone_credentials.get_secret_value(access_type=access_type, secret_type=secret_type)
 
+        username, password = secret['username'], secret['password']
         creds = {'name': username, 'password': password}
         auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds,
                                       headers={'Content-Type': 'application/json'})
@@ -78,7 +81,7 @@ class Sevone_Onboarding(Job):
         session = requests.Session()
         session.headers.update({'Content-Type': 'application/json', 'X-AUTH-TOKEN': token})
 
-        devices_response = session.get(f"{self.sevone_api_url}/devices?page=0&size=10000")
+        devices_response = session.get(f"{sevone_api_url}/devices?page=0&size=10000")
         if devices_response.status_code != 200:
             self.log_failure("Failed to fetch devices!")
             return []
