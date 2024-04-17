@@ -1,6 +1,5 @@
 import logging
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
-from nautobot.extras.secrets.exceptions import SecretError
 from nautobot.apps.jobs import Job, StringVar, IntegerVar, ObjectVar, register_jobs
 
 
@@ -88,7 +87,7 @@ class Sevone_Onboarding(Job):
 
             return devices_response.json()['content']
 
-        except SecretError as e:
+        except Exception as e:
             self.log_failure(f"An unexpected error occurred: {str(e)}")
             return []
 
