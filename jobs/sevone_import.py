@@ -63,30 +63,36 @@ class Sevone_Onboarding(Job):
 
     def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
         """Fetch devices from SevOne API using credentials from a secret."""
-        # You need to specify the access_type and secret_type that match your configuration
-        access_type = 'Generic'  # Placeholder, replace with the actual access type needed
-        secret_type = 'API'  # Placeholder, replace with the actual secret type needed
-        secret = sevone_credentials.get_secret_value(access_type=access_type, secret_type=secret_type)
+        try:
+            # Fetching username and password from secrets
+            username = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='Username')
+            password = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='Password')
 
-        username, password = secret['username'], secret['password']
-        creds = {'name': username, 'password': password}
-        auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds,
-                                      headers={'Content-Type': 'application/json'})
+            creds = {'name': username, 'password': password}
+            auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds,
+                                          headers={'Content-Type': 'application/json'})
 
-        if auth_response.status_code != 200:
-            self.log_failure("Authentication failed!")
+            if auth_response.status_code != 200:
+                self.log_failure("Authentication failed!")
+                return []
+
+            token = auth_response.json()['token']
+            session = requests.Session()
+            session.headers.update({'Content-Type': 'application/json', 'X-AUTH-TOKEN': token})
+
+            devices_response = session.get(f"{sevone_api_url}/devices?page=0&size=10000")
+            if devices_response.status_code != 200:
+                self.log_failure("Failed to fetch devices!")
+                return []
+
+            return devices_response.json()['content']
+
+        except SecretsGroup.SecretsGroupAssociation.DoesNotExist:
+            self.log_failure("The necessary secret configuration does not exist in the group.")
             return []
-
-        token = auth_response.json()['token']
-        session = requests.Session()
-        session.headers.update({'Content-Type': 'application/json', 'X-AUTH-TOKEN': token})
-
-        devices_response = session.get(f"{sevone_api_url}/devices?page=0&size=10000")
-        if devices_response.status_code != 200:
-            self.log_failure("Failed to fetch devices!")
+        except Exception as e:
+            self.log_failure(f"An unexpected error occurred: {str(e)}")
             return []
-
-        return devices_response.json()['content']
 
     def process_devices(self, devices):
         """Process each device and determine if it's missing from Nautobot."""
