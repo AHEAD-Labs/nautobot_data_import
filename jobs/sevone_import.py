@@ -1,13 +1,14 @@
-from nautobot.extras.jobs import Job, StringVar, ObjectVar, register_jobs, get_task_logger
-from nautobot.extras.models import GraphQLQuery, SecretsGroup
+import logging
 import requests
+from nautobot.extras.jobs import Job, StringVar, ObjectVar, get_task_logger
+from nautobot.extras.models import GraphQLQuery, SecretsGroup
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
 
 class Sevone_Onboarding(Job):
     class Meta:
-        name = "Device Onboarding from sevOne"
+        name = "Device Onboarding from SevOne"
         description = "Onboards devices from SevOne by fetching and processing their details."
 
     sevone_api_url = StringVar(
@@ -32,8 +33,8 @@ class Sevone_Onboarding(Job):
                 logger.info("No devices fetched from SevOne.")
                 return "No devices were found."
         except Exception as e:
-            logger.error(f"An error occurred: {str(e)}")
-            return f"An error occurred: {str(e)}"
+            logger.error(f"An error occurred: {str(e)}", extra={"grouping": "error", "object": self.job_result})
+            raise Exception(f"An error occurred: {str(e)}")
 
     def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
         """Fetch devices from SevOne API using credentials from a secret."""
