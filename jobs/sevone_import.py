@@ -1,6 +1,6 @@
 import logging
 import requests
-from nautobot.extras.jobs import Job, StringVar, ObjectVar, get_task_logger
+from nautobot.extras.jobs import Job, StringVar, ObjectVar, register_jobs, get_task_logger
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
 
 # Setup the logger using Nautobot's get_task_logger function
