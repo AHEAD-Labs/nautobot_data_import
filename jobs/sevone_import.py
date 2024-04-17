@@ -87,7 +87,7 @@ class Sevone_Onboarding(Job):
 
             return devices_response.json()['content']
 
-        except SecretsGroup.SecretsGroupAssociation.DoesNotExist:
+        except SecretsGroup.SecretsGroupAccessTypeChoices.DoesNotExist:
             self.log_failure("The necessary secret configuration does not exist in the group.")
             return []
         except Exception as e:
