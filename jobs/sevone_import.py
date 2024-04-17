@@ -45,26 +45,25 @@ class Sevone_Onboarding(Job):
             password = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='Password')
 
             creds = {'name': username, 'password': password}
-            logger.debug(f"Attempting to authenticate with SevOne API at {sevone_api_url}")
-            auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds, headers={'Content-Type': 'application/json'})
+            auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds,
+                                          headers={'Content-Type': 'application/json'})
             if auth_response.status_code != 200:
-                logger.error("Authentication failed!", extra={'response': auth_response.text})
+                logger.error("Authentication failed!")
                 return []
 
             token = auth_response.json()['token']
             session = requests.Session()
             session.headers.update({'Content-Type': 'application/json', 'X-AUTH-TOKEN': token})
 
-            logger.debug(f"Fetching devices from {sevone_api_url}/devices?page=0&size=10000")
             devices_response = session.get(f"{sevone_api_url}/devices?page=0&size=10000")
             if devices_response.status_code != 200:
-                logger.error("Failed to fetch devices!", extra={'response': devices_response.text})
+                logger.error("Failed to fetch devices!")
                 return []
 
             return devices_response.json()
 
         except Exception as e:
-            logger.error(f"An unexpected error occurred during fetch from SevOne: {str(e)}")
+            logger.error(f"An unexpected error occurred: {str(e)}")
             return []
 
     def process_devices(self, devices):
