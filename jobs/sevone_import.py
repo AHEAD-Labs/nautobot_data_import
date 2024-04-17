@@ -18,18 +18,11 @@ class Sevone_Onboarding(Job):
         default="SEVONE"
     )
 
-    def run(self, data, commit):
-        sevone_api_url = self.sevone_api_url
-        sevone_credentials = self.sevone_credentials
-
-        self.log_info(message=f"Using SevOne API URL: {sevone_api_url}")
-        if sevone_credentials:
-            self.log_info(message=f"Using credentials: {sevone_credentials.name}")
-
-        if commit:
-            self.log_success(message="Changes have been committed.")
-        else:
-            self.log_warning(message="Running in no-commit mode.")
+    def run(self, sevone_api_url, sevone_credentials):
+        """Main execution block for the Job."""
+        self.log_info(message="Starting device onboarding process.")
+        devices = self.fetch_devices_from_sevone(sevone_api_url, sevone_credentials)
+        self.process_devices(devices)
 
     def check_device_exists(self, ip):
         """Check if a device with the given IP address exists in Nautobot using GraphQL."""
@@ -58,13 +51,13 @@ class Sevone_Onboarding(Job):
             self.log_info("No device found with IP {}".format(ip))
             return False
 
-    def fetch_devices_from_sevone(self):
+    def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
         """Fetch devices from SevOne API using credentials from a secret."""
-        secret = self.sevone_credentials.get_value()  # Automatically decrypts the secret
+        secret = sevone_credentials.get_value()  # Automatically decrypts the secret
         username, password = secret['username'], secret['password']
 
         creds = {'name': username, 'password': password}
-        auth_response = requests.post(f"{self.sevone_api_url}/authentication/signin", json=creds,
+        auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds,
                                       headers={'Content-Type': 'application/json'})
 
         if auth_response.status_code != 200:
