@@ -73,7 +73,7 @@ class Sevone_Onboarding(Job):
                                           headers={'Content-Type': 'application/json'})
 
             if auth_response.status_code != 200:
-                self.log_failure("Authentication failed!")
+                self. logger.error("Authentication failed!")
                 return []
 
             token = auth_response.json()['token']
@@ -82,13 +82,13 @@ class Sevone_Onboarding(Job):
 
             devices_response = session.get(f"{sevone_api_url}/devices?page=0&size=10000")
             if devices_response.status_code != 200:
-                self.log_failure("Failed to fetch devices!")
+                self. logger.error("Failed to fetch devices!")
                 return []
 
             return devices_response.json()['content']
 
         except Exception as e:
-            self.log_failure(f"An unexpected error occurred: {str(e)}")
+            self. logger.error(f"An unexpected error occurred: {str(e)}")
             return []
 
     def process_devices(self, devices):
