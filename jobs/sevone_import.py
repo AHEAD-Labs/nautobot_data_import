@@ -1,6 +1,6 @@
 import logging
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
-rom nautobot.extras.secrets.exceptions import SecretError
+from nautobot.extras.secrets.exceptions import SecretError
 from nautobot.apps.jobs import Job, StringVar, IntegerVar, ObjectVar, register_jobs
 
 
