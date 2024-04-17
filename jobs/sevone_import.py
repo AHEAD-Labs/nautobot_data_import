@@ -4,6 +4,7 @@ from celery.utils.log import get_task_logger
 from nautobot.apps.jobs import Job, register_jobs
 from nautobot.extras.jobs import StringVar, ObjectVar
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
+from nautobot.extras.secrets.exceptions import SecretError
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
@@ -20,9 +21,7 @@ class Sevone_Onboarding(Job):
 
     sevone_credentials = ObjectVar(
         model=SecretsGroup,
-        description="SevOne API Credentials",
-        display_field='name',
-        default="SEVONE"
+        description="SevOne API Credentials"
     )
 
     def run(self, sevone_api_url, sevone_credentials):
@@ -40,9 +39,12 @@ class Sevone_Onboarding(Job):
 
     def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
         """Fetch devices from SevOne API using credentials from a secret."""
+        logger.info(sevone_credentials)
+        secrets_group = SecretsGroup.objects.get(name=sevone_credentials)
+
         try:
-            username = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='Username')
-            password = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='Password')
+            username = secrets_group.get_secret_value(access_type='HTTP(S)', secret_type='Username')
+            password = secrets_group.get_secret_value(access_type='HTTP(S)', secret_type='Password')
 
             creds = {'name': username, 'password': password}
             auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds,
