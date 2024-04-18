@@ -20,10 +20,11 @@ class Sevone_Onboarding(Job):
     def run(self, sevone_api_url, sevone_credentials):
         logger.info("Starting device onboarding process.")
         devices = self.fetch_devices_from_sevone(sevone_api_url, sevone_credentials)
-        if devices:
+        logger.info(f"Received devices type: {type(devices)}")  # Log the type of the devices data
+        if devices and isinstance(devices, list):  # Ensure devices is a list
             return self.process_devices(devices)
         else:
-            logger.info("No devices fetched from SevOne.")
+            logger.warning(f"Unexpected devices data type or empty list received: {devices}")
             return "No devices were found."
 
     def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
@@ -42,12 +43,10 @@ class Sevone_Onboarding(Job):
                 logger.error(f"Authentication failed with status {auth_response.status_code}: {auth_response.text}")
                 return []
 
-            # Extract token and prepare for subsequent requests
             token = auth_response.json().get('token')
             logger.info("Authentication successful, token received.")
 
             session = requests.Session()
-            # Update headers to use X-AUTH-TOKEN
             session.headers.update({'Content-Type': 'application/json', 'X-AUTH-TOKEN': token})
             logger.info(f"Sending request to fetch devices from {sevone_api_url}devices?page=0&size=10000")
             devices_response = session.get(f"{sevone_api_url}devices?page=0&size=10000")
@@ -57,8 +56,13 @@ class Sevone_Onboarding(Job):
                     f"Failed to fetch devices with status {devices_response.status_code}: {devices_response.text}")
                 return []
 
-            logger.info("Devices fetched successfully.")
-            return devices_response.json()
+            devices = devices_response.json().get('content',
+                                                  [])  # Ensure that 'content' key is the correct key that contains the devices list
+            logger.info(f"Devices fetched successfully. Number of devices: {len(devices)}")
+            logger.debug(
+                f"Sample device data: {devices[0] if devices else 'No devices found'}")  # Log sample device data for verification
+
+            return devices
 
         except Exception as e:
             logger.error(f"An unexpected error occurred: {str(e)}")
