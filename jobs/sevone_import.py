@@ -20,7 +20,16 @@ class Sevone_Onboarding(Job):
         description = "Onboards devices from SevOne by fetching and processing their details."
 
     sevone_api_url = StringVar(description="URL of the SevOne API", default="http://gbsasev-pas01/api/v2/")
-    sevone_credentials = ObjectVar(model=SecretsGroup, description="SevOne API Credentials")
+    sevone_credentials = ObjectVar(
+        model=SecretsGroup,
+        description="SevOne API Credentials",
+        required=True
+    )
+    additional_credentials = ObjectVar(
+        model=SecretsGroup,
+        description="Credentials for Device On Boarding",
+        required=True
+    )
 
     def run(self, sevone_api_url, sevone_credentials):
         logger.info("Starting device onboarding process.")
@@ -79,7 +88,11 @@ class Sevone_Onboarding(Job):
             # Call the new method to onboard the device
             self.onboard_device(device_name, device_ip)
 
-    def onboard_device(self, device_name, device_ip):
+    def onboard_device(self, device_name, device_ip, user):
+        credentials_id = self.get_credentials_id()
+        if not credentials_id:
+            logger.error("Credentials ID not found. Check the provided credentials.")
+            return
         logger.info(f"Checking if device '{device_name}' with IP '{device_ip}' exists in Nautobot.")
 
         # Check if the device already exists in Nautobot
@@ -87,40 +100,66 @@ class Sevone_Onboarding(Job):
             logger.info(f"Device {device_name} already exists in Nautobot. Skipping onboarding.")
             return
 
+        # Ensure you have a Location object. Assuming 'Location' is already created and available
+        # Here you'd typically fetch the location using some criteria or create it if it doesn't exist
+        location = Location.objects.filter(name="Default Location").first()
+        if not location:
+            logger.error("Default location not found.")
+            return
+
+        # Fetching credentials ID
+        credentials_id = self.get_credentials_id(
+            'Default Credentials')  # Ensure this function is defined to fetch credentials
+        if not credentials_id:
+            logger.error("Credentials not found. Aborting onboarding.")
+            return
+
         # Look up the onboarding job class in Nautobot
-        # Ensure you have the correct name for the job. This name should be exactly how it's named in the Nautobot UI or API.
         job_class = get_job(
-            'nautobot_device_onboarding.jobs.OnboardingTask')  # Correct class path from your previous outputs
+            'nautobot_device_onboarding.jobs.PerformDeviceOnboarding')  # Adjust the job identifier as needed
         if not job_class:
             logger.error("Onboarding job class not found. Please check the job identifier.")
             return
 
         # Prepare job data payload
         job_data = {
-            'device_name': device_name,
-            'device_ip': device_ip,
+            'data': {
+                'location': location.id,
+                'ip_address': device_ip,
+                'credentials': credentials_id,
+                'port': "22",
+                'timeout': "30",
+            },
+            'schedule': {
+                'name': f"Onboarding {device_name}",
+                'interval': 'immediately',
+            },
+            'task_queue': 'default'
         }
 
         # Create a JobResult to track the execution of the onboarding job
         job_result = JobResult.objects.create(
-            name=job_class.class_path,
-            job_id=job_class.class_path,
-            user=self.context.get('user', get_user_model().objects.get(username='admin')),
-            # Adjust the default admin as necessary
+            name='Perform Device Onboarding',
+            job_id='onboarding_job_identifier',  # Ensure correct identifier
+            user=user,
             status='pending',
         )
 
         # Enqueue the onboarding job
         job_class.enqueue_job(
             data=job_data,
-            request=self.context.get('request'),  # Pass in the request if available in the context
-            user=self.context.get('user', get_user_model().objects.get(username='admin')),
+            user=user,
             commit=True,
             job_result=job_result,
         )
 
         logger.info(
             f"Onboarding job for device {device_name} with IP {device_ip} has been enqueued with job result ID: {job_result.pk}")
+
+    def get_credentials_id(self):
+        if self.additional_credentials:
+            return self.additional_credentials.id
+        return None
 
     def device_exists_in_nautobot(self, hostname, ip_address):
         try:
