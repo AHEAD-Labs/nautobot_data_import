@@ -10,6 +10,8 @@ from nautobot.extras.models import Status, Role
 from django.db import transaction
 from django.utils.text import slugify
 from django.contrib.auth import get_user_model
+from my_device_jobs.device_onboarding import PerformDeviceOnboarding
+
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
@@ -123,8 +125,8 @@ class Sevone_Onboarding(Job):
             return
 
         # Look up the onboarding job class in Nautobot
-        job_class = get_job(
-            'nautobot_device_onboarding.jobs.PerformDeviceOnboarding')  # Adjust the job identifier as needed
+        job_class = get_job('my_device_jobs.device_onboarding.PerformDeviceOnboarding')  # Update this path
+
         if not job_class:
             logger.error("Onboarding job class not found. Please check the job identifier.")
             return
