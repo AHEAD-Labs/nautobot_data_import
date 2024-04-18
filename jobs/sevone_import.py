@@ -14,7 +14,7 @@ class Sevone_Onboarding(Job):
         name = "Device Onboarding from SevOne"
         description = "Onboards devices from SevOne by fetching and processing their details."
 
-    sevone_api_url = StringVar(description="URL of the SevOne API", default="http://gbsasev-pas01/api/v2")
+    sevone_api_url = StringVar(description="URL of the SevOne API", default="http://gbsasev-pas01/api/v2/")
     sevone_credentials = ObjectVar(model=SecretsGroup, description="SevOne API Credentials")
 
     def run(self, sevone_api_url, sevone_credentials):
@@ -28,22 +28,34 @@ class Sevone_Onboarding(Job):
 
     def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
         try:
+            logger.info("Retrieving secrets for authentication.")
             username = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='username')
             password = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='password')
+            logger.info("Secrets retrieved successfully.")
+
             creds = {'name': username, 'password': password}
-            auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds, headers={'Content-Type': 'application/json'})
+            logger.info(f"Sending authentication request to {sevone_api_url}authentication/signin")
+            auth_response = requests.post(f"{sevone_api_url}authentication/signin", json=creds,
+                                          headers={'Content-Type': 'application/json'})
+
             if auth_response.status_code != 200:
                 logger.error(f"Authentication failed with status {auth_response.status_code}: {auth_response.text}")
                 return []
 
             token = auth_response.json().get('token')
+            logger.info("Authentication successful, token received.")
+
             session = requests.Session()
             session.headers.update({'Authorization': f'Bearer {token}'})
-            devices_response = session.get(f"{sevone_api_url}/devices?page=0&size=10000")
+            logger.info(f"Sending request to fetch devices from {sevone_api_url}devices?page=0&size=10000")
+            devices_response = session.get(f"{sevone_api_url}devices?page=0&size=10000")
+
             if devices_response.status_code != 200:
-                logger.error(f"Failed to fetch devices with status {devices_response.status_code}: {devices_response.text}")
+                logger.error(
+                    f"Failed to fetch devices with status {devices_response.status_code}: {devices_response.text}")
                 return []
 
+            logger.info("Devices fetched successfully.")
             return devices_response.json()
 
         except Exception as e:
