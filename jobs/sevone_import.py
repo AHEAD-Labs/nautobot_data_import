@@ -14,7 +14,7 @@ class Sevone_Onboarding(Job):
         name = "Device Onboarding from SevOne"
         description = "Onboards devices from SevOne by fetching and processing their details."
 
-    sevone_api_url = StringVar(description="URL of the SevOne API", default="http://gbsasev-pas01/")
+    sevone_api_url = StringVar(description="URL of the SevOne API", default="http://gbsasev-pas01/api/v2/")
     sevone_credentials = ObjectVar(model=SecretsGroup, description="SevOne API Credentials")
 
     def run(self, sevone_api_url, sevone_credentials):
