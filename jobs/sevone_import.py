@@ -2,8 +2,9 @@ import requests
 from celery.utils.log import get_task_logger
 from nautobot.apps.jobs import Job, register_jobs
 from nautobot.extras.jobs import StringVar, ObjectVar
-from nautobot.extras.models import Device, GraphQLQuery, SecretsGroup
-from nautobot.dcim.models import IPAddress
+from nautobot.extras.models import GraphQLQuery, SecretsGroup
+from nautobot.dcim.models import Devices
+from nautobot.ipam import IPAddress
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
@@ -82,7 +83,7 @@ class Sevone_Onboarding(Job):
 
     def device_exists_in_nautobot(self, hostname, ip):
         # Check if a device with the given hostname or IP exists in Nautobot
-        device_exists = Device.objects.filter(name=hostname).exists()
+        device_exists = Devices.objects.filter(name=hostname).exists()
         ip_exists = IPAddress.objects.filter(address__startswith=ip.split('/')[0]).exists()
         return device_exists or ip_exists
 
