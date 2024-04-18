@@ -78,31 +78,26 @@ class Sevone_Onboarding(Job):
 
     def onboard_device(self, device_name, device_ip, additional_credentials):
         logger.info(f"Checking if device '{device_name}' with IP '{device_ip}' exists in Nautobot.")
+
+        # Check if the device already exists in Nautobot
         if self.device_exists_in_nautobot(device_name, device_ip):
             logger.info(f"Device {device_name} already exists in Nautobot. Skipping onboarding.")
             return
 
-        # Extract the first four letters of the device name, convert them to uppercase, and use them as the location name.
+        # Extract the first four letters of the device name to use as the location name.
         location_code = device_name[:4].upper()
-        location, created = Location.objects.get_or_create(
-            name=location_code,
-            defaults={'slug': slugify(location_code)}
-        )
+        location, created = Location.objects.get_or_create(name=location_code)
         if created:
-            logger.info(f"Created new location: {location.name}")
+            logger.info(f"Created new location: {location_code}")
         else:
-            logger.info(f"Using existing location: {location.name}")
+            logger.info(f"Using existing location: {location_code}")
 
-        # Check for the correct job using its class path
+        # Ensure you have the correct job and credentials
         job_class = get_job('nautobot_device_onboarding.jobs.PerformDeviceOnboarding')
-        if not job_class:
-            logger.error("Onboarding job class not found. Please check the job identifier.")
-            return
-
-        # Ensure credentials are available
         credentials_id = self.get_credentials_id(additional_credentials)
-        if not credentials_id:
-            logger.error("Credentials ID not found. Check the provided credentials.")
+
+        if not job_class or not credentials_id:
+            logger.error("Job class or credentials not found.")
             return
 
         # Prepare job data payload
@@ -121,7 +116,7 @@ class Sevone_Onboarding(Job):
             'task_queue': 'default'
         }
 
-        # Create a JobResult to track the execution of the onboarding job
+        # Create and enqueue job
         job_result = JobResult.objects.create(
             name='Perform Device Onboarding',
             job_id=job_class.class_path,
@@ -129,7 +124,6 @@ class Sevone_Onboarding(Job):
             status='pending',
         )
 
-        # Enqueue the onboarding job
         job_class.enqueue_job(
             data=job_data,
             request=self.context['request'],
