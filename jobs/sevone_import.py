@@ -74,11 +74,11 @@ class Sevone_Onboarding(Job):
         for device_data in devices:
             device_name = device_data['name']
             device_ip = device_data['ipAddress']
-            self.onboard_device(device_name, device_ip, additional_credentials)
+            self.onboard_device(device_name, device_ip, additional_credentials, context=self.context)
 
-    def onboard_device(self, device_name, device_ip, additional_credentials):
+    def onboard_device(self, device_name, device_ip, additional_credentials, context):
         logger.info(f"Attempting to onboard device: {device_name} with IP: {device_ip}")
-
+        user = context.get('user', get_user_model().objects.get(username='usr-brian')),
         # Check if the device already exists
         if self.device_exists_in_nautobot(device_name, device_ip):
             logger.info(f"Device {device_name} already exists in Nautobot. Skipping onboarding.")
