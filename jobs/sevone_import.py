@@ -82,34 +82,44 @@ class Sevone_Onboarding(Job):
     def onboard_device(self, device_name, device_ip):
         logger.info(f"Checking if device '{device_name}' with IP '{device_ip}' exists in Nautobot.")
 
+        # Check if the device already exists in Nautobot
         if self.device_exists_in_nautobot(device_name, device_ip):
             logger.info(f"Device {device_name} already exists in Nautobot. Skipping onboarding.")
             return
 
-        logger.info(f"Device {device_name} not found in Nautobot. Proceeding with onboarding.")
-        job_class = get_job('onboarding_job_identifier')  # Make sure this identifier is correct
-
-        if not job_class:
+        # Look up the onboarding job class in Nautobot
+        # Ensure you have the correct name for the job. This name should be exactly how it's named in the Nautobot UI or API.
+        job_class = get_job('local/onboarding_plugin/OnboardingJob')  # Update this path accordingly
+        if job_class is None:
             logger.error("Onboarding job class not found. Please check the job identifier.")
             return
 
-        job_data = {'device_name': device_name, 'device_ip': device_ip}
+        # Prepare job data payload
+        job_data = {
+            'device_name': device_name,
+            'device_ip': device_ip,
+        }
+
+        # Create a JobResult to track the execution of the onboarding job
         job_result = JobResult.objects.create(
-            name='Perform Device Onboarding',
-            job_id='onboarding_job_identifier',
-            user=self.context['user'],
-            status='Active'
+            name=job_class.class_path,
+            job_id=job_class.class_path,
+            user=self.context.get('user', get_user_model().objects.get(username='admin')),
+            # Adjust the default admin as necessary
+            status='pending',
         )
 
+        # Enqueue the onboarding job
         job_class.enqueue_job(
             data=job_data,
-            request=self.context['request'],
-            user=self.context['user'],
+            request=self.context.get('request'),  # Pass in the request if available in the context
+            user=self.context.get('user', get_user_model().objects.get(username='admin')),
             commit=True,
-            job_result=job_result
+            job_result=job_result,
         )
 
-        logger.info(f"Onboarding job for device {device_name} with IP {device_ip} has been enqueued.")
+        logger.info(
+            f"Onboarding job for device {device_name} with IP {device_ip} has been enqueued with job result ID: {job_result.pk}")
 
     def device_exists_in_nautobot(self, hostname, ip_address):
         try:
