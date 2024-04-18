@@ -1,10 +1,9 @@
-import logging
 import requests
 from celery.utils.log import get_task_logger
 from nautobot.apps.jobs import Job, register_jobs
 from nautobot.extras.jobs import StringVar, ObjectVar
-from nautobot.extras.models import GraphQLQuery, SecretsGroup
-from nautobot.extras.secrets.exceptions import SecretError
+from nautobot.extras.models import Device, GraphQLQuery, SecretsGroup
+from nautobot.dcim.models import IPAddress
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
@@ -20,11 +19,10 @@ class Sevone_Onboarding(Job):
     def run(self, sevone_api_url, sevone_credentials):
         logger.info("Starting device onboarding process.")
         devices = self.fetch_devices_from_sevone(sevone_api_url, sevone_credentials)
-        logger.info(f"Received devices type: {type(devices)}")  # Log the type of the devices data
-        if devices and isinstance(devices, list):  # Ensure devices is a list
+        if devices and isinstance(devices, list):
             return self.process_devices(devices)
         else:
-            logger.warning(f"Unexpected devices data type or empty list received: {devices}")
+            logger.warning("Unexpected devices data type or empty list received.")
             return "No devices were found."
 
     def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
@@ -69,7 +67,11 @@ class Sevone_Onboarding(Job):
             return []
 
     def process_devices(self, devices):
-        missing_devices = [device['name'] for device in devices if not self.check_device_exists(device['ipAddress'])]
+        missing_devices = []
+        for device in devices:
+            if not self.device_exists_in_nautobot(device['name'], device['ipAddress']):
+                missing_devices.append(device['name'])
+
         num_missing = len(missing_devices)
         if num_missing:
             logger.info(f"Total {num_missing} devices processed and identified for onboarding.")
@@ -78,22 +80,10 @@ class Sevone_Onboarding(Job):
             logger.info("No new devices needed onboarding.")
             return "All devices are already in Nautobot."
 
-    def check_device_exists(self, ip):
-        query = """
-        query GetDeviceByIP($ip: [String]!) {
-          ip_addresses(address: $ip) {
-            address
-            interface_assignments {
-              interface {
-                device {
-                  name
-                }
-              }
-            }
-          }
-        }
-        """
-        result = GraphQLQuery(query=query, variables={'ip': [ip]}).execute()
-        return bool(result.get('data', {}).get('ip_addresses', []))
+    def device_exists_in_nautobot(self, hostname, ip):
+        # Check if a device with the given hostname or IP exists in Nautobot
+        device_exists = Device.objects.filter(name=hostname).exists()
+        ip_exists = IPAddress.objects.filter(address__startswith=ip.split('/')[0]).exists()
+        return device_exists or ip_exists
 
 register_jobs(Sevone_Onboarding)
