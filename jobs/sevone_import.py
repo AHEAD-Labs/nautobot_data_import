@@ -25,10 +25,6 @@ class Sevone_Onboarding(Job):
     additional_credentials = ObjectVar(model=SecretsGroup, description="Additional Credentials for Device Onboarding",
                                        required=True)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.context = {}
-
     def run(self, sevone_api_url, sevone_credentials, additional_credentials):
         logger.info("Starting device onboarding process.")
         devices = self.fetch_devices_from_sevone(sevone_api_url, sevone_credentials)
