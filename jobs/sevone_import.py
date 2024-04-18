@@ -7,6 +7,7 @@ from nautobot.dcim.models import Device, Location, Manufacturer, DeviceType, Pla
 from nautobot.ipam.models import IPAddress
 from nautobot.extras.models import Status, Role
 from django.contrib.auth import get_user_model
+from nautobot_device_onboarding.jobs import OnboardingTask
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
@@ -20,6 +21,7 @@ class Sevone_Onboarding(Job):
     sevone_api_url = StringVar(description="URL of the SevOne API", default="http://gbsasev-pas01/api/v2/")
     sevone_credentials = ObjectVar(model=SecretsGroup, description="SevOne API Credentials", required=True)
     additional_credentials = ObjectVar(model=SecretsGroup, description="Additional Credentials for Device Onboarding",
+                                       required=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -79,6 +81,7 @@ class Sevone_Onboarding(Job):
     def onboard_device(self, device_name, device_ip, additional_credentials):
         logger.info(f"Attempting to onboard device: {device_name} with IP: {device_ip}")
 
+        user = self.context.get('user', get_user_model().objects.get(username='usr-brian'))
         # Extracting the location code from the device name
         location_code = device_name[:4].upper()
         location_type_name = "Campus"  # Example type name, ensure this is defined in your system
@@ -143,7 +146,7 @@ class Sevone_Onboarding(Job):
         try:
             job_result = JobResult.objects.create(
                 name='Perform Device Onboarding',
-                user = self.context.get('user', get_user_model().objects.get(username='usr-brian')),
+                user=self.context.get('user', get_user_model().objects.get(username='usr-brian')),
                 status='pending',
                 job=job_class
             )
