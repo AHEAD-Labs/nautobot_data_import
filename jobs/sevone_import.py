@@ -42,11 +42,13 @@ class Sevone_Onboarding(Job):
                 logger.error(f"Authentication failed with status {auth_response.status_code}: {auth_response.text}")
                 return []
 
+            # Extract token and prepare for subsequent requests
             token = auth_response.json().get('token')
             logger.info("Authentication successful, token received.")
 
             session = requests.Session()
-            session.headers.update({'Authorization': f'Bearer {token}'})
+            # Update headers to use X-AUTH-TOKEN
+            session.headers.update({'Content-Type': 'application/json', 'X-AUTH-TOKEN': token})
             logger.info(f"Sending request to fetch devices from {sevone_api_url}devices?page=0&size=10000")
             devices_response = session.get(f"{sevone_api_url}devices?page=0&size=10000")
 
