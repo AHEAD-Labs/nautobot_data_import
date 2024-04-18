@@ -77,25 +77,25 @@ class Sevone_Onboarding(Job):
             self.onboard_device(device_name, device_ip, additional_credentials)
 
     def onboard_device(self, device_name, device_ip, additional_credentials):
-        # Extracting the location code from the device name
-        location_code = device_name[:4].upper()
-        location_slug = slugify(location_code)
+        logger.info(f"Attempting to onboard device: {device_name} with IP: {device_ip}")
 
-        # Ensure LocationType exists
+        # Extracting the location code from the device name and ensuring a location type
+        location_code = device_name[:4].upper()
+        location_type_name = "Campus"  # Example type name
+
+        # Ensuring LocationType exists
         location_type, lt_created = LocationType.objects.get_or_create(
-            name="Campus",  # Example type name, adjust as needed
-            defaults={'slug': slugify("Campus")}  # Assuming 'slug' is required here
+            name=location_type_name
         )
         if lt_created:
-            logger.info(f"Created new LocationType: 'Campus'")
+            logger.info(f"Created new LocationType: {location_type_name}")
         else:
-            logger.info(f"Using existing LocationType: 'Campus'")
+            logger.info(f"Using existing LocationType: {location_type_name}")
 
-        # Ensure Location exists
+        # Ensuring Location exists
         location, loc_created = Location.objects.get_or_create(
             name=location_code,
             defaults={
-                'slug': location_slug,
                 'location_type': location_type
             }
         )
@@ -109,8 +109,52 @@ class Sevone_Onboarding(Job):
             logger.info(f"Device {device_name} already exists in Nautobot. Skipping onboarding.")
             return
 
-        # Here goes the onboarding job invocation
-        logger.info(f"Proceeding with onboarding for {device_name}.")
+        # Retrieve credentials ID
+        credentials_id = self.get_credentials_id(additional_credentials)
+        if not credentials_id:
+            logger.error("Credentials ID not found. Check the provided credentials.")
+            return
+
+        # Look up the onboarding job class in Nautobot
+        job_class = get_job(
+            'nautobot_device_onboarding.jobs.PerformDeviceOnboarding')  # Adjust the job identifier as needed
+        if not job_class:
+            logger.error("Onboarding job class not found. Please check the job identifier.")
+            return
+
+        # Prepare job data payload
+        job_data = {
+            'data': {
+                'location': location.id,
+                'ip_address': device_ip,
+                'credentials': credentials_id,
+                'port': "22",
+                'timeout': "30",
+            },
+            'schedule': {
+                'name': f"Onboarding {device_name}",
+                'interval': 'immediately',
+            },
+            'task_queue': 'default'
+        }
+
+        # Create a JobResult to track the execution of the onboarding job
+        job_result = JobResult.objects.create(
+            name='Perform Device Onboarding',
+            job_id=job_class.class_path,  # Ensure correct identifier
+            user=self.context.get('user', get_user_model().objects.get(username='admin')),  # Adjust as necessary
+            status='pending',
+        )
+
+        # Enqueue the onboarding job
+        job_class.enqueue_job(
+            data=job_data,
+            commit=True,
+            job_result=job_result,
+        )
+
+        logger.info(
+            f"Onboarding job for device {device_name} with IP {device_ip} has been enqueued with job result ID: {job_result.pk}")
 
     def get_credentials_id(self, additional_credentials):
         return additional_credentials.id if additional_credentials else None
