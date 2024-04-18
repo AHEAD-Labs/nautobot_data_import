@@ -8,6 +8,7 @@ from nautobot.ipam.models import IPAddress
 from nautobot.tenancy.models import Tenant
 from nautobot.extras.models import Status, Role
 from django.db import transaction
+from django.utils.text import slugify
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
@@ -78,12 +79,36 @@ class Sevone_Onboarding(Job):
             self.onboard_device(device_name, device_ip)
     def onboard_device(self, device_name, device_ip):
         # Look up or create the necessary objects
-        site, _ = Location.objects.get_or_create(name='Default Site', slug='default-site')
-        manufacturer, _ = Manufacturer.objects.get_or_create(name='Default Manufacturer', slug='default-manufacturer')
-        device_type, _ = DeviceType.objects.get_or_create(model='Default Device Type', manufacturer=manufacturer)
-        device_role, _ = Role.objects.get_or_create(name='Default Role', slug='default-role')
-        platform, _ = Platform.objects.get_or_create(name='Default Platform', slug='default-platform')
-        status, _ = Status.objects.get_or_create(name='Active', slug='active')
+        location_type, _ = LocationType.objects.get_or_create(
+            name='Campus',
+            slug='campus'  # Ensure this slug is suitable for your needs, or handle dynamically
+        )
+        location, _ = Location.objects.get_or_create(
+            name='Default Location',
+            slug=slugify('Default Location'),  # Generate a slug from the name
+            location_type=location_type
+        )
+        manufacturer, _ = Manufacturer.objects.get_or_create(
+            name='Default Manufacturer',
+            slug=slugify('Default Manufacturer')
+        )
+        device_type, _ = DeviceType.objects.get_or_create(
+            model='Default Device Type',
+            slug=slugify('Default Device Type'),
+            manufacturer=manufacturer
+        )
+        device_role, _ = Role.objects.get_or_create(
+            name='Default Role',
+            slug=slugify('Default Role')
+        )
+        platform, _ = Platform.objects.get_or_create(
+            name='Default Platform',
+            slug=slugify('Default Platform')
+        )
+        status_active, _ = Status.objects.get_or_create(
+            name='Active',
+            slug='active'
+        )
 
         # Check if the device already exists
         if not Device.objects.filter(name=device_name).exists():
@@ -95,15 +120,15 @@ class Sevone_Onboarding(Job):
                     device_type=device_type,
                     device_role=device_role,
                     platform=platform,
-                    site=site,
-                    status=status,
+                    location=location,
+                    status=status_active,
                 )
 
                 # Create an IPAddress object for the device's primary IP
                 ip_address, created = IPAddress.objects.get_or_create(
                     address=device_ip,
                     defaults={
-                        'status': status,
+                        'status': status_active,
                         'tenant': Tenant.objects.get_or_create(name='Default Tenant', slug='default-tenant')[0],
                     },
                 )
