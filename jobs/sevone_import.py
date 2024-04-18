@@ -95,10 +95,10 @@ class Sevone_Onboarding(Job):
 
         job_data = {'device_name': device_name, 'device_ip': device_ip}
         job_result = JobResult.objects.create(
-            name='Onboarding Job',
+            name='Perform Device Onboarding',
             job_id='onboarding_job_identifier',
             user=self.context['user'],
-            status='pending'
+            status='Active'
         )
 
         job_class.enqueue_job(
