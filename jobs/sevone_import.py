@@ -3,7 +3,7 @@ from celery.utils.log import get_task_logger
 from nautobot.apps.jobs import Job, register_jobs
 from nautobot.extras.jobs import StringVar, ObjectVar, get_job
 from nautobot.extras.models import JobResult, SecretsGroup
-from nautobot.dcim.models import Device, Location, Manufacturer, DeviceType, Platform
+from nautobot.dcim.models import Device, Location, Manufacturer, DeviceType, Platform, LocationType
 from nautobot.ipam.models import IPAddress
 from nautobot.tenancy.models import Tenant
 from nautobot.extras.models import Status, Role
@@ -77,63 +77,40 @@ class Sevone_Onboarding(Job):
             self.onboard_device(device_name, device_ip, additional_credentials)
 
     def onboard_device(self, device_name, device_ip, additional_credentials):
-        logger.info(f"Checking if device '{device_name}' with IP '{device_ip}' exists in Nautobot.")
-
-        # Check if the device already exists in Nautobot
-        if self.device_exists_in_nautobot(device_name, device_ip):
-            logger.info(f"Device {device_name} already exists in Nautobot. Skipping onboarding.")
-            return
-
-        # Extract the first four letters of the device name to use as the location name.
+        # Extracting the location code from the device name
         location_code = device_name[:4].upper()
-        location, created = Location.objects.get_or_create(name=location_code)
-        if created:
+        location_slug = slugify(location_code)
+
+        # Ensure LocationType exists
+        location_type, lt_created = LocationType.objects.get_or_create(
+            name="Campus",  # Example type name, adjust as needed
+            defaults={'slug': slugify("Campus")}  # Assuming 'slug' is required here
+        )
+        if lt_created:
+            logger.info(f"Created new LocationType: 'Campus'")
+        else:
+            logger.info(f"Using existing LocationType: 'Campus'")
+
+        # Ensure Location exists
+        location, loc_created = Location.objects.get_or_create(
+            name=location_code,
+            defaults={
+                'slug': location_slug,
+                'location_type': location_type
+            }
+        )
+        if loc_created:
             logger.info(f"Created new location: {location_code}")
         else:
             logger.info(f"Using existing location: {location_code}")
 
-        # Ensure you have the correct job and credentials
-        job_class = get_job('nautobot_device_onboarding.jobs.PerformDeviceOnboarding')
-        credentials_id = self.get_credentials_id(additional_credentials)
-
-        if not job_class or not credentials_id:
-            logger.error("Job class or credentials not found.")
+        # Check if the device already exists
+        if self.device_exists_in_nautobot(device_name, device_ip):
+            logger.info(f"Device {device_name} already exists in Nautobot. Skipping onboarding.")
             return
 
-        # Prepare job data payload
-        job_data = {
-            'data': {
-                'location': location.id,
-                'ip_address': device_ip,
-                'credentials': credentials_id,
-                'port': "22",
-                'timeout': "30",
-            },
-            'schedule': {
-                'name': f"Onboarding {device_name}",
-                'interval': 'immediately',
-            },
-            'task_queue': 'default'
-        }
-
-        # Create and enqueue job
-        job_result = JobResult.objects.create(
-            name='Perform Device Onboarding',
-            job_id=job_class.class_path,
-            user=self.context['request'].user,
-            status='pending',
-        )
-
-        job_class.enqueue_job(
-            data=job_data,
-            request=self.context['request'],
-            user=self.context['request'].user,
-            commit=True,
-            job_result=job_result,
-        )
-
-        logger.info(
-            f"Onboarding job for device {device_name} with IP {device_ip} has been enqueued with job result ID: {job_result.pk}")
+        # Here goes the onboarding job invocation
+        logger.info(f"Proceeding with onboarding for {device_name}.")
 
     def get_credentials_id(self, additional_credentials):
         return additional_credentials.id if additional_credentials else None
