@@ -92,11 +92,18 @@ class Sevone_Onboarding(Job):
         else:
             logger.info(f"Using existing LocationType: {location_type_name}")
 
-        # Ensuring Location exists
+        # Retrieve or create 'Active' status
+        active_status, status_created = Status.objects.get_or_create(
+            name='Active',
+            defaults={'slug': 'active'}
+        )
+
+        # Ensuring Location exists with 'Active' status
         location, loc_created = Location.objects.get_or_create(
             name=location_code,
             defaults={
-                'location_type': location_type
+                'location_type': location_type,
+                'status': active_status
             }
         )
         if loc_created:
