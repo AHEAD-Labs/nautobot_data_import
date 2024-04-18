@@ -112,10 +112,9 @@ class Sevone_Onboarding(Job):
         # Create a JobResult to track the execution of the onboarding job
         job_result = JobResult.objects.create(
             name='Perform Device Onboarding',
-            job_id=job_class.class_path,  # Ensure correct identifier
-            user = context.get('user', get_user_model().objects.get(username='usr-brian')),
-            status='Status',
-            job=self
+            user=context.get('user', get_user_model().objects.get(username='usr-brian')),
+            status='pending',
+            job=self  # Pass the current job instance here
         )
 
         # Run the onboarding job
@@ -137,6 +136,5 @@ class Sevone_Onboarding(Job):
         except Exception as e:
             logger.error(f"Error checking if device exists in Nautobot: {e}")
             return False
-
 
 register_jobs(Sevone_Onboarding)
