@@ -84,12 +84,11 @@ class Sevone_Onboarding(Job):
 
         # Check if the device already exists in Nautobot
         if self.device_exists_in_nautobot(device_name, device_ip):
-            logger.info(f"Device {device_name} already exists in Nautobot. Skipping onboarding.")
+            logger.info(f"Device {device_name} already exists in Nautobot.")
             return
 
-        # Proceed with onboarding if the device does not exist
-        # Look up the onboarding job class in Nautobot (update 'onboarding_job_name' with your specific job's name)
-        job_class = get_job('local/onboarding_plugin/OnboardingJob')  # Update this path
+        # Look up the onboarding job class in Nautobot
+        job_class = get_job('local/onboarding_plugin/OnboardingJob')  # Update this path accordingly
         if not job_class:
             logger.error("Onboarding job class not found.")
             return
@@ -98,7 +97,6 @@ class Sevone_Onboarding(Job):
         job_data = {
             'device_name': device_name,
             'device_ip': device_ip,
-            # Include additional data as required by the onboarding job
         }
 
         # Create a JobResult to track the execution of the onboarding job
@@ -106,16 +104,15 @@ class Sevone_Onboarding(Job):
             name=job_class.class_path,
             job_id=job_class.class_path,
             user=self.context.get('user', get_user_model().objects.get(username='admin')),
-            # Replace 'admin' with a valid username
+            # Adjust the default admin as necessary
             status='pending',
         )
 
         # Enqueue the onboarding job
         job_class.enqueue_job(
             data=job_data,
-            request=self.context.get('request'),  # Ensure the 'request' context is passed in when the job is run
+            request=self.context.get('request'),  # Pass in the request if available in the context
             user=self.context.get('user', get_user_model().objects.get(username='admin')),
-            # Replace 'admin' with a valid username
             commit=True,
             job_result=job_result,
         )
