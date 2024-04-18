@@ -2,8 +2,8 @@ import requests
 from celery.utils.log import get_task_logger
 from nautobot.apps.jobs import Job, register_jobs
 from nautobot.extras.jobs import StringVar, ObjectVar
-from nautobot.extras.models import GraphQLQuery, SecretsGroup
-from nautobot.dcim.models import Location, Manufacturer, DeviceType, Platform
+from nautobot.extras.models import GraphQLQuery, SecretsGroup, JobResult
+from nautobot.dcim.models import Location, LocationType, Manufacturer, DeviceType, Platform
 from nautobot.ipam.models import IPAddress
 from nautobot.tenancy.models import Tenant
 from nautobot.extras.models import Status, Role
@@ -77,73 +77,59 @@ class Sevone_Onboarding(Job):
             device_ip = device_data['ipAddress']
             # Call the new method to onboard the device
             self.onboard_device(device_name, device_ip)
+
     def onboard_device(self, device_name, device_ip):
-        # Look up or create the necessary objects
+        logger.info(f"Attempting to onboard device: {device_name} with IP: {device_ip}")
+
+        # Check if the device already exists in Nautobot
+        if Device.objects.filter(name=device_name).exists():
+            logger.info(f"Device {device_name} already exists in Nautobot.")
+            return
+
+        # Extract location code from the device name
+        location_code = device_name[:4].upper()
+        location_slug = slugify(location_code)
+
+        # Ensure the location exists before onboarding
         location_type, _ = LocationType.objects.get_or_create(
             name='Campus',
-            slug='campus'  # Ensure this slug is suitable for your needs, or handle dynamically
+            defaults={'slug': 'campus'}
         )
-        location, _ = Location.objects.get_or_create(
-            name='Default Location',
-            slug=slugify('Default Location'),  # Generate a slug from the name
-            location_type=location_type
-        )
-        manufacturer, _ = Manufacturer.objects.get_or_create(
-            name='Default Manufacturer',
-            slug=slugify('Default Manufacturer')
-        )
-        device_type, _ = DeviceType.objects.get_or_create(
-            model='Default Device Type',
-            slug=slugify('Default Device Type'),
-            manufacturer=manufacturer
-        )
-        device_role, _ = Role.objects.get_or_create(
-            name='Default Role',
-            slug=slugify('Default Role')
-        )
-        platform, _ = Platform.objects.get_or_create(
-            name='Default Platform',
-            slug=slugify('Default Platform')
-        )
-        status_active, _ = Status.objects.get_or_create(
-            name='Active',
-            slug='active'
+        location, location_created = Location.objects.get_or_create(
+            name=location_code,
+            defaults={
+                'slug': location_slug,
+                'location_type': location_type
+            }
         )
 
-        # Check if the device already exists
-        if not Device.objects.filter(name=device_name).exists():
-            # Start a new transaction
-            with transaction.atomic():
-                # Create the device if it doesn't exist
-                device = Device.objects.create(
-                    name=device_name,
-                    device_type=device_type,
-                    device_role=device_role,
-                    platform=platform,
-                    location=location,
-                    status=status_active,
-                )
-
-                # Create an IPAddress object for the device's primary IP
-                ip_address, created = IPAddress.objects.get_or_create(
-                    address=device_ip,
-                    defaults={
-                        'status': status_active,
-                        'tenant': Tenant.objects.get_or_create(name='Default Tenant', slug='default-tenant')[0],
-                    },
-                )
-                if created:
-                    logger.info(f"Created new IP address {device_ip} for device {device_name}.")
-                else:
-                    logger.info(f"IP address {device_ip} already existed.")
-
-                # Assign the IP address to the device
-                device.primary_ip4 = ip_address
-                device.save()
-
-                logger.info(f"Onboarded device {device_name} with IP {device_ip}.")
+        if location_created:
+            logger.info(f"Created new location: {location_code}")
         else:
-            logger.info(f"Device {device_name} already exists in Nautobot.")
+            logger.info(f"Using existing location: {location_code}")
+
+        # Prepare data for onboarding job
+        job_data = {
+            'device_name': device_name,
+            'device_ip': device_ip,
+            'location': location.pk
+        }
+
+        # Retrieve the onboarding job class from Nautobot (update 'onboarding_job_path' with your specific job's path)
+        job_class = get_job('local/onboarding_plugin/OnboardingJob')  # Update this path
+        if not job_class:
+            logger.error("Onboarding job class not found.")
+            return
+
+        # Run the onboarding job
+        job_result = JobResult.enqueue_job(
+            run_job=job_class,
+            data=job_data,
+            request=self.request,
+            user=self.request.user
+        )
+
+        logger.info(f"Onboarding job for device {device_name} has been enqueued with job result ID: {job_result.pk}")
 
     def device_exists_in_nautobot(self, hostname, ip_address):
         # Log the input hostname and IP address
