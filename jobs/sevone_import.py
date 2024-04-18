@@ -3,7 +3,7 @@ from celery.utils.log import get_task_logger
 from nautobot.apps.jobs import Job, register_jobs
 from nautobot.extras.jobs import StringVar, ObjectVar, get_job
 from nautobot.extras.models import GraphQLQuery, SecretsGroup, JobResult
-from nautobot.dcim.models import Location, LocationType, Manufacturer, DeviceType, Platform
+from nautobot.dcim.models import Device, Location, LocationType, Manufacturer, DeviceType, Platform
 from nautobot.ipam.models import IPAddress
 from nautobot.tenancy.models import Tenant
 from nautobot.extras.models import Status, Role
@@ -80,65 +80,45 @@ class Sevone_Onboarding(Job):
             self.onboard_device(device_name, device_ip)
 
     def onboard_device(self, device_name, device_ip):
-        logger.info(f"Attempting to onboard device: {device_name} with IP: {device_ip}")
+        logger.info(f"Checking if device '{device_name}' with IP '{device_ip}' exists in Nautobot.")
 
-        # Check if the device already exists in Nautobot
         if self.device_exists_in_nautobot(device_name, device_ip):
-            logger.info(f"Device {device_name} already exists in Nautobot.")
+            logger.info(f"Device {device_name} already exists in Nautobot. Skipping onboarding.")
             return
 
-        # Look up the onboarding job class in Nautobot
-        job_class = get_job('local/onboarding_plugin/OnboardingJob')  # Update this path accordingly
+        logger.info(f"Device {device_name} not found in Nautobot. Proceeding with onboarding.")
+        job_class = get_job('onboarding_job_identifier')  # Make sure this identifier is correct
+
         if not job_class:
-            logger.error("Onboarding job class not found.")
+            logger.error("Onboarding job class not found. Please check the job identifier.")
             return
 
-        # Prepare job data payload
-        job_data = {
-            'device_name': device_name,
-            'device_ip': device_ip,
-        }
-
-        # Create a JobResult to track the execution of the onboarding job
+        job_data = {'device_name': device_name, 'device_ip': device_ip}
         job_result = JobResult.objects.create(
-            name=job_class.class_path,
-            job_id=job_class.class_path,
-            user=self.context.get('user', get_user_model().objects.get(username='admin')),
-            # Adjust the default admin as necessary
-            status='pending',
+            name='Onboarding Job',
+            job_id='onboarding_job_identifier',
+            user=self.context['user'],
+            status='pending'
         )
 
-        # Enqueue the onboarding job
         job_class.enqueue_job(
             data=job_data,
-            request=self.context.get('request'),  # Pass in the request if available in the context
-            user=self.context.get('user', get_user_model().objects.get(username='admin')),
+            request=self.context['request'],
+            user=self.context['user'],
             commit=True,
-            job_result=job_result,
+            job_result=job_result
         )
 
-        logger.info(f"Onboarding job for device {device_name} has been enqueued with job result ID: {job_result.pk}")
+        logger.info(f"Onboarding job for device {device_name} with IP {device_ip} has been enqueued.")
 
     def device_exists_in_nautobot(self, hostname, ip_address):
-        # Log the input hostname and IP address
-        #logger.debug(f"Checking if device exists in Nautobot for hostname '{hostname}' and IP '{ip_address}'.")
-
         try:
-            # Check if a device with the given hostname exists in Nautobot
-            #logger.debug(f"Looking for device with hostname '{hostname}'.")
+            # Ensure Device model is recognized and used for querying the database
             device_exists = Device.objects.filter(name=hostname).exists()
-            #logger.debug(f"Device with hostname '{hostname}' exists: {device_exists}")
-
-            # Extract the IP address without the subnet mask
-            ip_query = ip_address.split('/')[0]
-            #logger.debug(f"Looking for IP address '{ip_query}'.")
+            ip_query = ip_address.split('/')[0]  # Assume IP address format includes a subnet mask
             ip_exists = IPAddress.objects.filter(address=ip_query).exists()
-            #logger.debug(f"IP address '{ip_query}' exists: {ip_exists}")
-
             return device_exists or ip_exists
-
         except Exception as e:
-            # Log any exception that occurs during the check
             logger.error(f"Error checking if device exists in Nautobot: {e}")
             return False
 
