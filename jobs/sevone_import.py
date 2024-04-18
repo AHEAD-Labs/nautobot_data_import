@@ -25,6 +25,10 @@ class Sevone_Onboarding(Job):
     additional_credentials = ObjectVar(model=SecretsGroup, description="Additional Credentials for Device Onboarding",
                                        required=True)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.context = {}
+
     def run(self, sevone_api_url, sevone_credentials, additional_credentials):
         logger.info("Starting device onboarding process.")
         devices = self.fetch_devices_from_sevone(sevone_api_url, sevone_credentials)
@@ -109,7 +113,7 @@ class Sevone_Onboarding(Job):
         job_result = JobResult.objects.create(
             name='Perform Device Onboarding',
             job_id=job_class.class_path,  # Ensure correct identifier
-            user=context.get('user', get_user_model().objects.get(username='usr-brian')),
+            user = context.get('user', get_user_model().objects.get(username='usr-brian')),
             status='pending',
         )
 
