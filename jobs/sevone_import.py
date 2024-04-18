@@ -81,10 +81,28 @@ class Sevone_Onboarding(Job):
             logger.info("No new devices needed onboarding.")
             return "All devices are already in Nautobot."
 
-    def device_exists_in_nautobot(self, hostname, ip):
-        # Check if a device with the given hostname or IP exists in Nautobot
-        device_exists = Device.objects.filter(name=hostname).exists()
-        ip_exists = IPAddress.objects.filter(address__startswith=ip.split('/')[0]).exists()
-        return device_exists or ip_exists
+    def device_exists_in_nautobot(self, hostname, ip_address):
+        # Log the input hostname and IP address
+        logger.debug(f"Checking if device exists in Nautobot for hostname '{hostname}' and IP '{ip_address}'.")
+
+        try:
+            # Check if a device with the given hostname exists in Nautobot
+            logger.debug(f"Looking for device with hostname '{hostname}'.")
+            device_exists = Device.objects.filter(name=hostname).exists()
+            logger.debug(f"Device with hostname '{hostname}' exists: {device_exists}")
+
+            # Extract the IP address without the subnet mask
+            ip_query = ip_address.split('/')[0]
+            logger.debug(f"Looking for IP address '{ip_query}'.")
+            ip_exists = IPAddress.objects.filter(address=ip_query).exists()
+            logger.debug(f"IP address '{ip_query}' exists: {ip_exists}")
+
+            return device_exists or ip_exists
+
+        except Exception as e:
+            # Log any exception that occurs during the check
+            logger.error(f"Error checking if device exists in Nautobot: {e}")
+            return False
+
 
 register_jobs(Sevone_Onboarding)
