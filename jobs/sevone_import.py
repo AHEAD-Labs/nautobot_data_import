@@ -89,8 +89,9 @@ class Sevone_Onboarding(Job):
 
         # Look up the onboarding job class in Nautobot
         # Ensure you have the correct name for the job. This name should be exactly how it's named in the Nautobot UI or API.
-        job_class = get_job('local/onboarding_plugin/OnboardingJob')  # Update this path accordingly
-        if job_class is None:
+        job_class = get_job(
+            'nautobot_device_onboarding.jobs.OnboardingTask')  # Correct class path from your previous outputs
+        if not job_class:
             logger.error("Onboarding job class not found. Please check the job identifier.")
             return
 
