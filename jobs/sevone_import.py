@@ -114,7 +114,8 @@ class Sevone_Onboarding(Job):
             name='Perform Device Onboarding',
             job_id=job_class.class_path,  # Ensure correct identifier
             user = context.get('user', get_user_model().objects.get(username='usr-brian')),
-            status='pending',
+            status='Status',
+            job=self
         )
 
         # Run the onboarding job
