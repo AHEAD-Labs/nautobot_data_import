@@ -3,8 +3,11 @@ from celery.utils.log import get_task_logger
 from nautobot.apps.jobs import Job, register_jobs
 from nautobot.extras.jobs import StringVar, ObjectVar
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
-from nautobot.dcim.models import Device
+from nautobot.dcim.models import Location, Manufacturer, DeviceType, Platform
 from nautobot.ipam.models import IPAddress
+from nautobot.tenancy.models import Tenant
+from nautobot.extras.models import Status, Role
+from django.db import transaction
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
@@ -68,34 +71,70 @@ class Sevone_Onboarding(Job):
             return []
 
     def process_devices(self, devices):
-        missing_devices = []
-        for device in devices:
-            if not self.device_exists_in_nautobot(device['name'], device['ipAddress']):
-                missing_devices.append(device['name'])
+        for device_data in devices:
+            device_name = device_data['name']
+            device_ip = device_data['ipAddress']
+            # Call the new method to onboard the device
+            self.onboard_device(device_name, device_ip)
+    def onboard_device(self, device_name, device_ip):
+        # Look up or create the necessary objects
+        site, _ = Location.objects.get_or_create(name='Default Site', slug='default-site')
+        manufacturer, _ = Manufacturer.objects.get_or_create(name='Default Manufacturer', slug='default-manufacturer')
+        device_type, _ = DeviceType.objects.get_or_create(model='Default Device Type', manufacturer=manufacturer)
+        device_role, _ = Role.objects.get_or_create(name='Default Role', slug='default-role')
+        platform, _ = Platform.objects.get_or_create(name='Default Platform', slug='default-platform')
+        status, _ = Status.objects.get_or_create(name='Active', slug='active')
 
-        num_missing = len(missing_devices)
-        if num_missing:
-            logger.info(f"Total {num_missing} devices processed and identified for onboarding.")
-            return f"Total {num_missing} devices missing from Nautobot and identified for onboarding: {', '.join(missing_devices)}"
+        # Check if the device already exists
+        if not Device.objects.filter(name=device_name).exists():
+            # Start a new transaction
+            with transaction.atomic():
+                # Create the device if it doesn't exist
+                device = Device.objects.create(
+                    name=device_name,
+                    device_type=device_type,
+                    device_role=device_role,
+                    platform=platform,
+                    site=site,
+                    status=status,
+                )
+
+                # Create an IPAddress object for the device's primary IP
+                ip_address, created = IPAddress.objects.get_or_create(
+                    address=device_ip,
+                    defaults={
+                        'status': status,
+                        'tenant': Tenant.objects.get_or_create(name='Default Tenant', slug='default-tenant')[0],
+                    },
+                )
+                if created:
+                    logger.info(f"Created new IP address {device_ip} for device {device_name}.")
+                else:
+                    logger.info(f"IP address {device_ip} already existed.")
+
+                # Assign the IP address to the device
+                device.primary_ip4 = ip_address
+                device.save()
+
+                logger.info(f"Onboarded device {device_name} with IP {device_ip}.")
         else:
-            logger.info("No new devices needed onboarding.")
-            return "All devices are already in Nautobot."
+            logger.info(f"Device {device_name} already exists in Nautobot.")
 
     def device_exists_in_nautobot(self, hostname, ip_address):
         # Log the input hostname and IP address
-        logger.debug(f"Checking if device exists in Nautobot for hostname '{hostname}' and IP '{ip_address}'.")
+        #logger.debug(f"Checking if device exists in Nautobot for hostname '{hostname}' and IP '{ip_address}'.")
 
         try:
             # Check if a device with the given hostname exists in Nautobot
-            logger.debug(f"Looking for device with hostname '{hostname}'.")
+            #logger.debug(f"Looking for device with hostname '{hostname}'.")
             device_exists = Device.objects.filter(name=hostname).exists()
-            logger.debug(f"Device with hostname '{hostname}' exists: {device_exists}")
+            #logger.debug(f"Device with hostname '{hostname}' exists: {device_exists}")
 
             # Extract the IP address without the subnet mask
             ip_query = ip_address.split('/')[0]
-            logger.debug(f"Looking for IP address '{ip_query}'.")
+            #logger.debug(f"Looking for IP address '{ip_query}'.")
             ip_exists = IPAddress.objects.filter(address=ip_query).exists()
-            logger.debug(f"IP address '{ip_query}' exists: {ip_exists}")
+            #logger.debug(f"IP address '{ip_query}' exists: {ip_exists}")
 
             return device_exists or ip_exists
 
