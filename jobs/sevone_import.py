@@ -14,52 +14,34 @@ class Sevone_Onboarding(Job):
         name = "Device Onboarding from SevOne"
         description = "Onboards devices from SevOne by fetching and processing their details."
 
-    sevone_api_url = StringVar(
-        description="URL of the SevOne API",
-        default="http://gbsasev-pas01/"
-    )
-
-    sevone_credentials = ObjectVar(
-        model=SecretsGroup,
-        description="SevOne API Credentials"
-    )
+    sevone_api_url = StringVar(description="URL of the SevOne API", default="http://gbsasev-pas01/")
+    sevone_credentials = ObjectVar(model=SecretsGroup, description="SevOne API Credentials")
 
     def run(self, sevone_api_url, sevone_credentials):
         logger.info("Starting device onboarding process.")
-        try:
-            devices = self.fetch_devices_from_sevone(sevone_api_url, sevone_credentials)
-            if devices:
-                return self.process_devices(devices)
-            else:
-                logger.info("No devices fetched from SevOne.")
-                return "No devices were found."
-        except Exception as e:
-            logger.error(f"An error occurred: {str(e)}", extra={"grouping": "error", "object": self.job_result})
-            raise Exception(f"An error occurred: {str(e)}")
+        devices = self.fetch_devices_from_sevone(sevone_api_url, sevone_credentials)
+        if devices:
+            return self.process_devices(devices)
+        else:
+            logger.info("No devices fetched from SevOne.")
+            return "No devices were found."
 
     def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
-        """Fetch devices from SevOne API using credentials from a secret."""
-        logger.info(sevone_credentials)
-        secrets_group = SecretsGroup.objects.get(name=sevone_credentials)
-
         try:
-            username = secrets_group.get_secret_value(access_type='HTTP(S)', secret_type='Username')
-            password = secrets_group.get_secret_value(access_type='HTTP(S)', secret_type='Password')
-
+            username = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='username')
+            password = sevone_credentials.get_secret_value(access_type='HTTP(S)', secret_type='password')
             creds = {'name': username, 'password': password}
-            auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds,
-                                          headers={'Content-Type': 'application/json'})
+            auth_response = requests.post(f"{sevone_api_url}/authentication/signin", json=creds, headers={'Content-Type': 'application/json'})
             if auth_response.status_code != 200:
-                logger.error("Authentication failed!")
+                logger.error(f"Authentication failed with status {auth_response.status_code}: {auth_response.text}")
                 return []
 
-            token = auth_response.json()['token']
+            token = auth_response.json().get('token')
             session = requests.Session()
-            session.headers.update({'Content-Type': 'application/json', 'X-AUTH-TOKEN': token})
-
+            session.headers.update({'Authorization': f'Bearer {token}'})
             devices_response = session.get(f"{sevone_api_url}/devices?page=0&size=10000")
             if devices_response.status_code != 200:
-                logger.error("Failed to fetch devices!")
+                logger.error(f"Failed to fetch devices with status {devices_response.status_code}: {devices_response.text}")
                 return []
 
             return devices_response.json()
@@ -69,12 +51,7 @@ class Sevone_Onboarding(Job):
             return []
 
     def process_devices(self, devices):
-        """Process each device and determine if it's missing from Nautobot."""
-        missing_devices = []
-        for device in devices:
-            if not self.check_device_exists(device['ipAddress']):
-                missing_devices.append(device['name'])
-
+        missing_devices = [device['name'] for device in devices if not self.check_device_exists(device['ipAddress'])]
         num_missing = len(missing_devices)
         if num_missing:
             logger.info(f"Total {num_missing} devices processed and identified for onboarding.")
@@ -84,7 +61,6 @@ class Sevone_Onboarding(Job):
             return "All devices are already in Nautobot."
 
     def check_device_exists(self, ip):
-        """Check if a device with the given IP address exists in Nautobot using GraphQL."""
         query = """
         query GetDeviceByIP($ip: [String]!) {
           ip_addresses(address: $ip) {
@@ -99,9 +75,7 @@ class Sevone_Onboarding(Job):
           }
         }
         """
-        variables = {'ip': [ip]}
-        result = GraphQLQuery(query=query, variables=variables).execute()
-        data = result.get('data', {}).get('ip_addresses', [])
-        return bool(data)
+        result = GraphQLQuery(query=query, variables={'ip': [ip]}).execute()
+        return bool(result.get('data', {}).get('ip_addresses', []))
 
 register_jobs(Sevone_Onboarding)
