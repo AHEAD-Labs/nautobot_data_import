@@ -4,7 +4,7 @@ from nautobot.apps.jobs import Job, register_jobs
 from nautobot.extras.jobs import StringVar, ObjectVar
 from nautobot.extras.models import GraphQLQuery, SecretsGroup
 from nautobot.dcim.models import Device
-from nautobot.ipam import IPAddress
+from nautobot.ipam.models import IPAddress
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
