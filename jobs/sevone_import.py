@@ -79,9 +79,9 @@ class Sevone_Onboarding(Job):
     def onboard_device(self, device_name, device_ip, additional_credentials):
         logger.info(f"Attempting to onboard device: {device_name} with IP: {device_ip}")
 
-        # Extracting the location code from the device name and ensuring a location type
+        # Extracting the location code from the device name
         location_code = device_name[:4].upper()
-        location_type_name = "Campus"  # Example type name
+        location_type_name = "Campus"  # Example type name, ensure this is defined in your system
 
         # Ensuring LocationType exists
         location_type, lt_created = LocationType.objects.get_or_create(
@@ -124,18 +124,11 @@ class Sevone_Onboarding(Job):
 
         # Prepare job data payload
         job_data = {
-            'data': {
-                'location': location.id,
-                'ip_address': device_ip,
-                'credentials': credentials_id,
-                'port': "22",
-                'timeout': "30",
-            },
-            'schedule': {
-                'name': f"Onboarding {device_name}",
-                'interval': 'immediately',
-            },
-            'task_queue': 'default'
+            'location': location.id,
+            'ip_address': device_ip,
+            'credentials': credentials_id,
+            'port': "22",
+            'timeout': "30",
         }
 
         # Create a JobResult to track the execution of the onboarding job
