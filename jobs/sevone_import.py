@@ -77,11 +77,17 @@ class Sevone_Onboarding(Job):
             self.onboard_device(device_name, device_ip, additional_credentials)
 
     def onboard_device(self, device_name, device_ip, additional_credentials):
-        logger.info(f"Attempting to onboard device: {device_name} with IP: {device_ip}")
+        def onboard_device(self, device_name, device_ip, additional_credentials):
+            logger.info(f"Attempting to onboard device: {device_name} with IP: {device_ip}")
+
+            # Check if the device already exists
+            if self.device_exists_in_nautobot(device_name, device_ip):
+                logger.info(f"Device {device_name} already exists in Nautobot. Skipping onboarding.")
+                return
 
         # Extracting the location code from the device name
         location_code = device_name[:4].upper()
-        location_type_name = "Campus"  # Example type name, ensure this is defined in your system
+        location_type_name = "SevOne"
 
         # Ensuring LocationType exists
         location_type, lt_created = LocationType.objects.get_or_create(
