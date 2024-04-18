@@ -7,6 +7,7 @@ from nautobot.dcim.models import Device, Location, Manufacturer, DeviceType, Pla
 from nautobot.ipam.models import IPAddress
 from nautobot.extras.models import Status, Role
 from django.contrib.auth import get_user_model
+from nautobot_device_onboarding.jobs import OnboardingTask
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
@@ -119,39 +120,37 @@ class Sevone_Onboarding(Job):
             logger.error("Credentials ID not found. Check the provided credentials.")
             return
 
-        # Look up the onboarding job class in Nautobot
-        job_class = get_job('my_device_jobs.device_onboarding.PerformDeviceOnboarding')  # Update this path
-
-        if not job_class:
-            logger.error("Onboarding job class not found. Please check the job identifier.")
+        job_class_path = 'nautobot_device_onboarding.jobs.OnboardingTask'
+        job_class = get_job(job_class_path)
+        if job_class:
+            logger.info(f"Successfully retrieved job class '{job_class_path}'")
+        else:
+            logger.error(f"Failed to retrieve job class '{job_class_path}'. Please check the job identifier.")
             return
 
-        # Prepare job data payload
+        # Assume other code to setup job_data here
         job_data = {
-            'location': location.id,
+            'location': 'example_location_id',
             'ip_address': device_ip,
-            'credentials': credentials_id,
-            'port': "22",
-            'timeout': "30",
+            'credentials': 'example_credentials_id',
+            'port': 22,
+            'timeout': 30,
         }
 
-        # Create a JobResult to track the execution of the onboarding job
-        job_result = JobResult.objects.create(
-            name='Perform Device Onboarding',
-            job_id=job_class.class_path,  # Ensure correct identifier
-            user=self.context.get('user', get_user_model().objects.get(username='admin')),  # Adjust as necessary
-            status='pending',
-        )
-
-        # Enqueue the onboarding job
-        job_class.enqueue_job(
-            data=job_data,
-            commit=True,
-            job_result=job_result,
-        )
-
-        logger.info(
-            f"Onboarding job for device {device_name} with IP {device_ip} has been enqueued with job result ID: {job_result.pk}")
+        # Execute the job
+        try:
+            job_result = JobResult.objects.create(
+                name='Perform Device Onboarding',
+                user=self.context.get('user', get_user_model().objects.get(username='admin')),
+                status='pending',
+                job=job_class
+            )
+            job_instance = job_class()
+            job_instance.run(data=job_data, commit=True, job_result=job_result)
+            logger.info(
+                f"Onboarding job for device {device_name} has been enqueued with Job Result ID: {job_result.pk}")
+        except Exception as e:
+            logger.error(f"Error executing job for device {device_name}: {str(e)}")
 
     def get_credentials_id(self, additional_credentials):
         return additional_credentials.id if additional_credentials else None
