@@ -1,7 +1,7 @@
 import requests
 from celery.utils.log import get_task_logger
 from nautobot.apps.jobs import Job, register_jobs
-from nautobot.extras.jobs import StringVar, ObjectVar
+from nautobot.extras.jobs import StringVar, ObjectVar, get_job
 from nautobot.extras.models import GraphQLQuery, SecretsGroup, JobResult
 from nautobot.dcim.models import Location, LocationType, Manufacturer, DeviceType, Platform
 from nautobot.ipam.models import IPAddress
@@ -9,6 +9,7 @@ from nautobot.tenancy.models import Tenant
 from nautobot.extras.models import Status, Role
 from django.db import transaction
 from django.utils.text import slugify
+from django.contrib.auth import get_user_model
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
@@ -86,51 +87,40 @@ class Sevone_Onboarding(Job):
             logger.info(f"Device {device_name} already exists in Nautobot.")
             return
 
-        # Extract location code from the device name
-        location_code = device_name[:4].upper()
-        location_slug = slugify(location_code)
-
-        # Ensure the location exists before onboarding
-        location_type, _ = LocationType.objects.get_or_create(
-            name='Campus',
-            defaults={'slug': 'campus'}
-        )
-        location, location_created = Location.objects.get_or_create(
-            name=location_code,
-            defaults={
-                'slug': location_slug,
-                'location_type': location_type
-            }
-        )
-
-        if location_created:
-            logger.info(f"Created new location: {location_code}")
-        else:
-            logger.info(f"Using existing location: {location_code}")
-
-        # Prepare data for onboarding job
-        job_data = {
-            'device_name': device_name,
-            'device_ip': device_ip,
-            'location': location.pk
-        }
-
-        # Retrieve the onboarding job class from Nautobot (update 'onboarding_job_path' with your specific job's path)
-        job_class = get_job('local/onboarding_plugin/OnboardingJob')  # Update this path
-        if not job_class:
+        # Prepare the job parameters
+        job_class = get_job('path.to.your.OnboardingJob')  # Update this path to the actual job class path
+        if job_class is None:
             logger.error("Onboarding job class not found.")
             return
 
-        # Run the onboarding job
-        job_result = JobResult.enqueue_job(
-            run_job=job_class,
-            data=job_data,
-            request=self.request,
-            user=self.request.user
+        # Define the job data
+        job_data = {
+            'device_name': device_name,
+            'device_ip': device_ip,
+            # Add additional parameters here as required
+        }
+
+        # Get admin user or any user as per your application's logic
+        admin_user = get_user_model().objects.get(username='admin')  # Ensure the admin or a system user exists
+
+        # Create a JobResult to track this job's execution
+        job_result = JobResult.objects.create(
+            name=job_class.class_path,
+            job_id=job_class.class_path,
+            user=admin_user,
+            status='pending',
         )
 
-        logger.info(f"Onboarding job for device {device_name} has been enqueued with job result ID: {job_result.pk}")
+        # Enqueue the job
+        job_result.enqueue_job(
+            run_job=job_class.function_name,  # This should be the callable function/method inside your job class
+            data=job_data,
+            request=self.request,
+            user=admin_user,
+            commit=True
+        )
 
+        logger.info(f"Onboarding job for {device_name} has been enqueued.")
     def device_exists_in_nautobot(self, hostname, ip_address):
         # Log the input hostname and IP address
         #logger.debug(f"Checking if device exists in Nautobot for hostname '{hostname}' and IP '{ip_address}'.")
