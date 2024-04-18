@@ -74,10 +74,42 @@ class Sevone_Onboarding(Job):
         for device_data in devices:
             device_name = device_data['name']
             device_ip = device_data['ipAddress']
-            self.onboard_device(device_name, device_ip, additional_credentials, context=self.context)
+            self.onboard_device(device_name, device_ip, additional_credentials)
 
-    def onboard_device(self, device_name, device_ip, additional_credentials, context):
+    def onboard_device(self, device_name, device_ip, additional_credentials):
         logger.info(f"Attempting to onboard device: {device_name} with IP: {device_ip}")
+
+        # Extracting the location code from the device name
+        location_code = device_name[:4].upper()
+        location_type_name = "Campus"  # Example type name, ensure this is defined in your system
+
+        # Ensuring LocationType exists
+        location_type, lt_created = LocationType.objects.get_or_create(
+            name=location_type_name
+        )
+        if lt_created:
+            logger.info(f"Created new LocationType: {location_type_name}")
+        else:
+            logger.info(f"Using existing LocationType: {location_type_name}")
+
+        # Retrieve or create 'Active' status
+        active_status, status_created = Status.objects.get_or_create(
+            name='Active',
+            defaults={'slug': 'active'}
+        )
+
+        # Ensuring Location exists with 'Active' status
+        location, loc_created = Location.objects.get_or_create(
+            name=location_code,
+            defaults={
+                'location_type': location_type,
+                'status': active_status
+            }
+        )
+        if loc_created:
+            logger.info(f"Created new location: {location_code}")
+        else:
+            logger.info(f"Using existing location: {location_code}")
 
         # Check if the device already exists
         if self.device_exists_in_nautobot(device_name, device_ip):
@@ -91,14 +123,15 @@ class Sevone_Onboarding(Job):
             return
 
         # Look up the onboarding job class in Nautobot
-        job_class = get_job('nautobot_device_onboarding.jobs.OnboardingTask')
+        job_class = get_job(
+            'nautobot_device_onboarding.jobs.PerformDeviceOnboarding')  # Adjust the job identifier as needed
         if not job_class:
             logger.error("Onboarding job class not found. Please check the job identifier.")
             return
 
         # Prepare job data payload
         job_data = {
-            'location': 'your_location_id',  # Replace with the actual location ID
+            'location': location.id,
             'ip_address': device_ip,
             'credentials': credentials_id,
             'port': "22",
@@ -108,17 +141,20 @@ class Sevone_Onboarding(Job):
         # Create a JobResult to track the execution of the onboarding job
         job_result = JobResult.objects.create(
             name='Perform Device Onboarding',
-            user=context.get('user', get_user_model().objects.get(username='usr-brian')),
+            job_id=job_class.class_path,  # Ensure correct identifier
+            user=self.context.get('user', get_user_model().objects.get(username='admin')),  # Adjust as necessary
             status='pending',
-            job=self  # Pass the current job instance here
         )
 
-        # Run the onboarding job
-        job_instance = job_class()
-        job_instance.run(**job_data)
+        # Enqueue the onboarding job
+        job_class.enqueue_job(
+            data=job_data,
+            commit=True,
+            job_result=job_result,
+        )
 
         logger.info(
-            f"Onboarding job for device {device_name} with IP {device_ip} has been started with job result ID: {job_result.pk}")
+            f"Onboarding job for device {device_name} with IP {device_ip} has been enqueued with job result ID: {job_result.pk}")
 
     def get_credentials_id(self, additional_credentials):
         return additional_credentials.id if additional_credentials else None
@@ -132,5 +168,6 @@ class Sevone_Onboarding(Job):
         except Exception as e:
             logger.error(f"Error checking if device exists in Nautobot: {e}")
             return False
+
 
 register_jobs(Sevone_Onboarding)
