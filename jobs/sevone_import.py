@@ -5,13 +5,8 @@ from nautobot.extras.jobs import StringVar, ObjectVar, get_job
 from nautobot.extras.models import JobResult, SecretsGroup
 from nautobot.dcim.models import Device, Location, Manufacturer, DeviceType, Platform, LocationType
 from nautobot.ipam.models import IPAddress
-from nautobot.tenancy.models import Tenant
 from nautobot.extras.models import Status, Role
-from django.db import transaction
-from django.utils.text import slugify
 from django.contrib.auth import get_user_model
-from my_device_jobs.device_onboarding import PerformDeviceOnboarding
-
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
