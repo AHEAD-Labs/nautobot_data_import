@@ -98,14 +98,16 @@ class Sevone_Onboarding(Job):
             logger.error("Onboarding job class not found. Check the job configuration.")
             return
 
+        logger.debug(f"Location ID: {location_id}, Device IP: {device_ip}, Credentials ID: {credentials_object}")
+
         job_data = {
             'location': location_id,
             'ip_address': device_ip,
-            'credentials': credentials_object,  # Pass the SecretsGroup object here
+            'credentials': credentials_object,
             'port': 22,
             'timeout': 30,
         }
-
+        logger.debug(f"Job Data: {job_data}")
         try:
             job_instance = job_class()
             job_instance.run(data=job_data, commit=True)
