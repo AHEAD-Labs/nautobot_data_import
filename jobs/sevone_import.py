@@ -102,33 +102,27 @@ class Sevone_Onboarding(Job):
         return location
 
     def run_onboarding_job(self, device_name, device_ip, credentials_id, location):
-        job_data = {
-            'location': location.id,
-            'ip_address': device_ip,
-            'credentials': credentials_id,
-            'port': 22,
-            'timeout': 30,
-        }
-        self.execute_onboarding_job(job_data, device_name)
-
-    def execute_onboarding_job(self, job_data, device_name):
         job_class = get_job('nautobot_device_onboarding.jobs.OnboardingTask')
         if job_class:
-            try:
-                job_result = JobResult.objects.create(
-                    name='Perform Device Onboarding',
-                    user=self.context.get('user', get_user_model().objects.get(username='admin')),
-                    status='pending'
-                )
-                job_instance = job_class()
-                job_instance.run(data=job_data, commit=True, job_result=job_result)
-                logger.info(
-                    f"Onboarding job for device {device_name} has been enqueued with Job Result ID: {job_result.pk}")
-            except Exception as e:
-                logger.error(f"Error executing job for device {device_name}: {str(e)}")
-                job_result.set_status('failed')
+            job_data = {
+                'location': location.id,
+                'ip_address': device_ip,
+                'credentials': credentials_id,
+                'port': 22,
+                'timeout': 30,
+            }
+            self.execute_job_without_result(job_class, job_data, device_name)
         else:
             logger.error("Onboarding job class not found. Please check the job identifier.")
+
+    def execute_job_without_result(self, job_class, job_data, device_name):
+        try:
+            # Directly invoke the job logic without creating a JobResult
+            job_instance = job_class()
+            job_instance.run(data=job_data, commit=True)  # Make sure the job's run method is properly set up for this
+            logger.info(f"Job for device {device_name} executed without tracking JobResult.")
+        except Exception as e:
+            logger.error(f"Error executing job for device {device_name}: {str(e)}")
 
     def get_credentials_id(self, additional_credentials):
         return additional_credentials.id if additional_credentials else None
