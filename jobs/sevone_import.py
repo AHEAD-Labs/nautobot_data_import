@@ -107,6 +107,7 @@ class Sevone_Onboarding(Job):
     def get_credentials_id(self, on_boarding_credentials):
         # Assuming additional_credentials is a SecretsGroup object from which we can get an ID directly
         try:
+            logger.info(f"Getting credentials {on_boarding_credentials}")
             return on_boarding_credentials.id  # Adjust this line if the method to fetch ID is different
         except Exception as e:
             logger.error(f"Failed to retrieve credentials ID: {str(e)}")
