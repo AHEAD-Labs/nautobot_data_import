@@ -84,20 +84,24 @@ class Sevone_Onboarding(Job):
         logger.info(f"Preparing to onboard device: {device_name} at IP: {device_ip}")
         job_class = get_job('nautobot_device_onboarding.jobs.OnboardingTask')
 
-        # Make sure credentials_id and location_id are passed as strings
-        credentials_id_str = str(credentials_id)  # Ensure it's a string if it's not already
-        location_id_str = str(location_id)  # Ensure it's a string if it's not already
+        try:
+            # Fetch the actual SecretsGroup object using credentials_id
+            credentials_object = SecretsGroup.objects.get(id=credentials_id)
+        except SecretsGroup.DoesNotExist:
+            logger.error(f"Credentials with ID {credentials_id} not found.")
+            return
+        except Exception as e:
+            logger.error(f"Error retrieving credentials: {str(e)}")
+            return
 
         if not job_class:
             logger.error("Onboarding job class not found. Check the job configuration.")
             return
 
-        logger.debug(f"Location ID: {location_id_str}, Device IP: {device_ip}, Credentials ID: {credentials_id_str}")
-
         job_data = {
-            'location': location_id_str,
+            'location': location_id,
             'ip_address': device_ip,
-            'credentials': credentials_id_str,  # Use the string version of the UUID
+            'credentials': credentials_object,  # Pass the SecretsGroup object here
             'port': 22,
             'timeout': 30,
         }
@@ -108,7 +112,6 @@ class Sevone_Onboarding(Job):
             logger.info(f"Onboarding job executed successfully for {device_name} with IP {device_ip}.")
         except Exception as e:
             logger.error(f"Error executing onboarding job for {device_name}: {str(e)}")
-            logger.debug(f"Job data provided: {job_data}")
 
     def get_credentials_id(self, on_boarding_credentials):
         # Assuming additional_credentials is a SecretsGroup object from which we can get an ID directly
