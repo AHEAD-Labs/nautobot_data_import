@@ -88,7 +88,7 @@ class Sevone_Onboarding(Job):
         if not job_class:
             logger.error("Onboarding job class not found. Check the job configuration.")
             return
-
+        logger.debug(f"location ID: {location.id}, device IP {device_ip}, credentials ID: {credentials_id}")
         job_data = {
             'location': location.id,
             'ip_address': device_ip,
@@ -153,13 +153,12 @@ class Sevone_Onboarding(Job):
             if created:
                 logger.info(f"Created new Location '{location_code}'.")
             else:
-                logger.info(f"Using existing Location '{location_code}' with location id '{location_type.id}'.")
+                logger.info(f"Using existing Location '{location_code}' with location id '{location.id}'.")
 
-            return location.id if location else None
+            return location.id  # Ensure this is the value being returned
 
         except Exception as e:
             logger.error(f"Failed to configure location '{location_code}': {e}")
-            return None
-
+            return None  # Clearly return None in case of error
 
 register_jobs(Sevone_Onboarding)
