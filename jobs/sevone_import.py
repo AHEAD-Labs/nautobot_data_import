@@ -31,10 +31,9 @@ class Sevone_Onboarding(Job):
         logger.info("Starting device onboarding process.")
         devices = self.fetch_devices_from_sevone(sevone_api_url, sevone_credentials)
         if devices and isinstance(devices, list):
-            return self.process_devices(devices, additional_credentials)
+            self.process_devices(devices, additional_credentials)
         else:
             logger.warning("Unexpected devices data type or empty list received.")
-            return "No devices were found."
 
     def fetch_devices_from_sevone(self, sevone_api_url, sevone_credentials):
         try:
@@ -76,86 +75,59 @@ class Sevone_Onboarding(Job):
         for device_data in devices:
             device_name = device_data['name']
             device_ip = device_data['ipAddress']
-            self.onboard_device(device_name, device_ip, additional_credentials)
+            if not self.device_exists_in_nautobot(device_name, device_ip):
+                credentials_id = self.get_credentials_id(additional_credentials)
+                if credentials_id:
+                    self.setup_location_and_status(device_name, device_ip, credentials_id)
+                else:
+                    logger.error("Credentials ID not found. Check the provided credentials.")
 
-    def onboard_device(self, device_name, device_ip, additional_credentials):
-        logger.info(f"Attempting to onboard device: {device_name} with IP: {device_ip}")
+    def setup_location_and_status(self, device_name, device_ip, credentials_id):
+        location = self.configure_location(device_name)
+        self.run_onboarding_job(device_name, device_ip, credentials_id, location)
 
-        user = self.context.get('user', get_user_model().objects.get(username='usr-brian'))
-        # Extracting the location code from the device name
+    def configure_location(self, device_name):
         location_code = device_name[:4].upper()
-        location_type_name = "Campus"  # Example type name, ensure this is defined in your system
-
-        # Ensuring LocationType exists
-        location_type, lt_created = LocationType.objects.get_or_create(
-            name=location_type_name
-        )
-        if lt_created:
-            logger.info(f"Created new LocationType: {location_type_name}")
-        else:
-            logger.info(f"Using existing LocationType: {location_type_name}")
-
-        # Retrieve or create 'Active' status
-        active_status, status_created = Status.objects.get_or_create(
-            name='Active',
-            defaults={'slug': 'active'}
-        )
-
-        # Ensuring Location exists with 'Active' status
-        location, loc_created = Location.objects.get_or_create(
+        location_type_name = "Campus"
+        location_type, _ = LocationType.objects.get_or_create(name=location_type_name)
+        active_status, _ = Status.objects.get_or_create(name='Active', defaults={'slug': 'active'})
+        location, _ = Location.objects.get_or_create(
             name=location_code,
             defaults={
                 'location_type': location_type,
                 'status': active_status
             }
         )
-        if loc_created:
-            logger.info(f"Created new location: {location_code}")
-        else:
-            logger.info(f"Using existing location: {location_code}")
+        return location
 
-        # Check if the device already exists
-        if self.device_exists_in_nautobot(device_name, device_ip):
-            logger.info(f"Device {device_name} already exists in Nautobot. Skipping onboarding.")
-            return
-
-        # Retrieve credentials ID
-        credentials_id = self.get_credentials_id(additional_credentials)
-        if not credentials_id:
-            logger.error("Credentials ID not found. Check the provided credentials.")
-            return
-
-        job_class_path = 'nautobot_device_onboarding.jobs.OnboardingTask'
-        job_class = get_job(job_class_path)
+    def run_onboarding_job(self, device_name, device_ip, credentials_id, location):
+        job_class = get_job('nautobot_device_onboarding.jobs.OnboardingTask')
         if job_class:
-            logger.info(f"Successfully retrieved job class '{job_class_path}'")
+            job_data = {
+                'location': location.id,
+                'ip_address': device_ip,
+                'credentials': credentials_id,
+                'port': 22,
+                'timeout': 30,
+            }
+            self.execute_job(job_class, job_data, device_name)
         else:
-            logger.error(f"Failed to retrieve job class '{job_class_path}'. Please check the job identifier.")
-            return
+            logger.error("Onboarding job class not found. Please check the job identifier.")
 
-        # Assume other code to setup job_data here
-        job_data = {
-            'location': 'example_location_id',
-            'ip_address': device_ip,
-            'credentials': 'example_credentials_id',
-            'port': 22,
-            'timeout': 30,
-        }
-
-        # Execute the job
+    def execute_job(self, job_class, job_data, device_name):
+        job_result = JobResult.objects.create(
+            name='Perform Device Onboarding',
+            user=self.context.get('user', get_user_model().objects.get(username='admin')),
+            status='pending'
+        )
         try:
-            job_result = JobResult.objects.create(
-                name='Perform Device Onboarding',
-                user=self.context.get('user', get_user_model().objects.get(username='usr-brian')),
-                status='pending',
-                job=job_class
-            )
             job_instance = job_class()
             job_instance.run(data=job_data, commit=True, job_result=job_result)
             logger.info(
                 f"Onboarding job for device {device_name} has been enqueued with Job Result ID: {job_result.pk}")
         except Exception as e:
             logger.error(f"Error executing job for device {device_name}: {str(e)}")
+            job_result.set_status('failed')
 
     def get_credentials_id(self, additional_credentials):
         return additional_credentials.id if additional_credentials else None
