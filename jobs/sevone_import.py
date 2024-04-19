@@ -76,21 +76,21 @@ class Sevone_Onboarding(Job):
             if not self.device_exists_in_nautobot(device_name, device_ip):
                 credentials_id = self.get_credentials_id(additional_credentials)
                 if credentials_id:
-                    location = self.configure_location(device_name)
-                    self.run_onboarding_job(device_name, device_ip, credentials_id, location)
+                    location_id = self.configure_location(device_name)
+                    self.run_onboarding_job(device_name, device_ip, credentials_id, location_id)
                 else:
                     logger.error("Credentials ID not found. Check the provided credentials.")
 
-    def run_onboarding_job(self, device_name, device_ip, credentials_id, location):
+    def run_onboarding_job(self, device_name, device_ip, credentials_id, location_id):
         logger.info(f"Preparing to onboard device: {device_name} at IP: {device_ip}")
         job_class = get_job('nautobot_device_onboarding.jobs.OnboardingTask')
 
         if not job_class:
             logger.error("Onboarding job class not found. Check the job configuration.")
             return
-        logger.debug(f"location ID: {location.id}, device IP {device_ip}, credentials ID: {credentials_id}")
+        logger.debug(f"location ID: {location_id}, device IP {device_ip}, credentials ID: {credentials_id}")
         job_data = {
-            'location': location.id,
+            'location': location_id,
             'ip_address': device_ip,
             'credentials': credentials_id,
             'port': 22,
@@ -155,7 +155,7 @@ class Sevone_Onboarding(Job):
             else:
                 logger.info(f"Using existing Location '{location_code}' with location id '{location.id}'.")
 
-            return location.id  # Ensure this is the value being returned
+            return location.id
 
         except Exception as e:
             logger.error(f"Failed to configure location '{location_code}': {e}")
