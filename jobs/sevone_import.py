@@ -117,6 +117,13 @@ class Sevone_Onboarding(Job):
             device_exists = Device.objects.filter(name=hostname).exists()
             ip_query = ip_address.split('/')[0]
             ip_exists = IPAddress.objects.filter(address=ip_query).exists()
+
+            # Adding detailed logging for clarity on what is being checked and the results
+            logger.info(
+                f"Checking if device with hostname '{hostname}' exists in Nautobot: {'found' if device_exists else 'not found'}")
+            logger.info(
+                f"Checking if IP address '{ip_query}' exists in Nautobot: {'found' if ip_exists else 'not found'}")
+
             return device_exists or ip_exists
         except Exception as e:
             logger.error(f"Error checking if device exists in Nautobot: {e}")
