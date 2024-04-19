@@ -85,14 +85,19 @@ class Sevone_Onboarding(Job):
         logger.info(f"Preparing to onboard device: {device_name} at IP: {device_ip}")
         job_class = get_job('nautobot_device_onboarding.jobs.OnboardingTask')
 
+        # Fetch the actual SecretsGroup object
+        credentials_object = SecretsGroup.objects.get(id=credentials_id)
+
         if not job_class:
             logger.error("Onboarding job class not found. Check the job configuration.")
             return
-        logger.debug(f"location ID: {location_id}, device IP {device_ip}, credentials ID: {credentials_id}")
+
+        logger.debug(f"Location ID: {location_id}, Device IP: {device_ip}, Credentials Object: {credentials_object}")
+
         job_data = {
             'location': location_id,
             'ip_address': device_ip,
-            'credentials': credentials_id,
+            'credentials': credentials_object,  # Passing the object instead of ID
             'port': 22,
             'timeout': 30,
         }
