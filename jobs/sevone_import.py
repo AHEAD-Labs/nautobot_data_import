@@ -107,8 +107,8 @@ class Sevone_Onboarding(Job):
     def get_credentials_id(self, on_boarding_credentials):
         # Assuming additional_credentials is a SecretsGroup object from which we can get an ID directly
         try:
-            logger.info(f"Getting credentials {on_boarding_credentials.id}")
-            return on_boarding_credentials.id  # Adjust this line if the method to fetch ID is different
+            logger.info(f"Getting credentials {on_boarding_credentials} with ID {on_boarding_credentials.id}")
+            return on_boarding_credentials.id
         except Exception as e:
             logger.error(f"Failed to retrieve credentials ID: {str(e)}")
             return None
@@ -133,11 +133,33 @@ class Sevone_Onboarding(Job):
     def configure_location(self, device_name):
         # Configure location based on device name
         location_code = device_name[:4].upper()
-        location, created = Location.objects.get_or_create(
-            name=location_code,
-            defaults={'location_type': LocationType.objects.get_or_create(name="Campus")[0],
-                      'status': Status.objects.get_or_create(name='Active')[0]}
-        )
-        return location.id if location else None
+        try:
+            location_type, location_type_created = LocationType.objects.get_or_create(name="Campus")
+            if location_type_created:
+                logger.info(f"Created new LocationType 'Campus'.")
+            else:
+                logger.info(f"Using existing LocationType 'Campus'.")
+
+            status, status_created = Status.objects.get_or_create(name='Active', defaults={'slug': 'active'})
+            if status_created:
+                logger.info(f"Created new Status 'Active'.")
+            else:
+                logger.info(f"Using existing Status 'Active'.")
+
+            location, created = Location.objects.get_or_create(
+                name=location_code,
+                defaults={'location_type': location_type, 'status': status}
+            )
+            if created:
+                logger.info(f"Created new Location '{location_code}'.")
+            else:
+                logger.info(f"Using existing Location '{location_code}'.")
+
+            return location.id if location else None
+
+        except Exception as e:
+            logger.error(f"Failed to configure location '{location_code}': {e}")
+            return None
+
 
 register_jobs(Sevone_Onboarding)
