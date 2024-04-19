@@ -103,7 +103,7 @@ class Sevone_Onboarding(Job):
         job_data = {
             'location': location_id,
             'ip_address': device_ip,
-            'credentials': credentials_object,
+            'credentials': str(credentials_object),
             'port': 22,
             'timeout': 30,
         }
