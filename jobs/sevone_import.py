@@ -6,8 +6,6 @@ from nautobot.extras.models import JobResult, SecretsGroup
 from nautobot.dcim.models import Device, Location, Manufacturer, DeviceType, Platform, LocationType
 from nautobot.ipam.models import IPAddress
 from nautobot.extras.models import Status, Role
-from django.contrib.auth import get_user_model
-from nautobot_device_onboarding.jobs import OnboardingTask
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
@@ -20,18 +18,18 @@ class Sevone_Onboarding(Job):
 
     sevone_api_url = StringVar(description="URL of the SevOne API", default="http://gbsasev-pas01/api/v2/")
     sevone_credentials = ObjectVar(model=SecretsGroup, description="SevOne API Credentials", required=True)
-    additional_credentials = ObjectVar(model=SecretsGroup, description="Additional Credentials for Device Onboarding",
+    on_boarding_credentials = ObjectVar(model=SecretsGroup, description="Additional Credentials for Device Onboarding",
                                        required=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.context = getattr(self, 'context', {})
 
-    def run(self, sevone_api_url, sevone_credentials, additional_credentials):
+    def run(self, sevone_api_url, sevone_credentials, on_boarding_credentials):
         logger.info("Starting device onboarding process.")
         devices = self.fetch_devices_from_sevone(sevone_api_url, sevone_credentials)
         if devices and isinstance(devices, list):
-            self.process_devices(devices, additional_credentials)
+            self.process_devices(devices, on_boarding_credentials)
         else:
             logger.warning("Unexpected devices data type or empty list received.")
 
@@ -83,49 +81,36 @@ class Sevone_Onboarding(Job):
                 else:
                     logger.error("Credentials ID not found. Check the provided credentials.")
 
-    def setup_location_and_status(self, device_name, device_ip, credentials_id):
-        location = self.configure_location(device_name)
-        self.run_onboarding_job(device_name, device_ip, credentials_id, location)
-
-    def configure_location(self, device_name):
-        location_code = device_name[:4].upper()
-        location_type_name = "Campus"
-        location_type, _ = LocationType.objects.get_or_create(name=location_type_name)
-        active_status, _ = Status.objects.get_or_create(name='Active', defaults={'slug': 'active'})
-        location, _ = Location.objects.get_or_create(
-            name=location_code,
-            defaults={
-                'location_type': location_type,
-                'status': active_status
-            }
-        )
-        return location
-
     def run_onboarding_job(self, device_name, device_ip, credentials_id, location):
+        logger.info(f"Preparing to onboard device: {device_name} at IP: {device_ip}")
         job_class = get_job('nautobot_device_onboarding.jobs.OnboardingTask')
-        if job_class:
-            job_data = {
-                'location': location.id,
-                'ip_address': device_ip,
-                'credentials': credentials_id,
-                'port': 22,
-                'timeout': 30,
-            }
-            self.execute_job_without_result(job_class, job_data, device_name)
-        else:
-            logger.error("Onboarding job class not found. Please check the job identifier.")
 
-    def execute_job_without_result(self, job_class, job_data, device_name):
+        if not job_class:
+            logger.error("Onboarding job class not found. Check the job configuration.")
+            return
+
+        job_data = {
+            'location': location.id,
+            'ip_address': device_ip,
+            'credentials': credentials_id,
+            'port': 22,
+            'timeout': 30,
+        }
+
         try:
-            # Directly invoke the job logic without creating a JobResult
             job_instance = job_class()
-            job_instance.run(data=job_data, commit=True)  # Make sure the job's run method is properly set up for this
-            logger.info(f"Job for device {device_name} executed without tracking JobResult.")
+            job_instance.run(data=job_data, commit=True)
+            logger.info(f"Onboarding job executed successfully for {device_name} with IP {device_ip}.")
         except Exception as e:
-            logger.error(f"Error executing job for device {device_name}: {str(e)}")
+            logger.error(f"Error executing onboarding job for {device_name}: {str(e)}")
 
-    def get_credentials_id(self, additional_credentials):
-        return additional_credentials.id if additional_credentials else None
+    def get_credentials_id(self, on_boarding_credentials):
+        # Assuming additional_credentials is a SecretsGroup object from which we can get an ID directly
+        try:
+            return on_boarding_credentials.id  # Adjust this line if the method to fetch ID is different
+        except Exception as e:
+            logger.error(f"Failed to retrieve credentials ID: {str(e)}")
+            return None
 
     def device_exists_in_nautobot(self, hostname, ip_address):
         try:
@@ -137,5 +122,14 @@ class Sevone_Onboarding(Job):
             logger.error(f"Error checking if device exists in Nautobot: {e}")
             return False
 
+    def configure_location(self, device_name):
+        # Configure location based on device name
+        location_code = device_name[:4].upper()
+        location, created = Location.objects.get_or_create(
+            name=location_code,
+            defaults={'location_type': LocationType.objects.get_or_create(name="Campus")[0],
+                      'status': Status.objects.get_or_create(name='Active')[0]}
+        )
+        return location.id if location else None
 
 register_jobs(Sevone_Onboarding)
