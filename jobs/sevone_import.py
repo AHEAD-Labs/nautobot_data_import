@@ -153,7 +153,7 @@ class Sevone_Onboarding(Job):
             if created:
                 logger.info(f"Created new Location '{location_code}'.")
             else:
-                logger.info(f"Using existing Location '{location_code}'.")
+                logger.info(f"Using existing Location '{location_code}' with location id '{location_type.id}'.")
 
             return location.id if location else None
 
