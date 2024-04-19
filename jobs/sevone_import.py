@@ -25,7 +25,7 @@ class Sevone_Onboarding(Job):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.context = {}
+        self.context = getattr(self, 'context', {})
 
     def run(self, sevone_api_url, sevone_credentials, additional_credentials):
         logger.info("Starting device onboarding process.")
