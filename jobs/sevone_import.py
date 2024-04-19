@@ -78,7 +78,8 @@ class Sevone_Onboarding(Job):
             if not self.device_exists_in_nautobot(device_name, device_ip):
                 credentials_id = self.get_credentials_id(additional_credentials)
                 if credentials_id:
-                    self.setup_location_and_status(device_name, device_ip, credentials_id)
+                    location = self.configure_location(device_name)
+                    self.run_onboarding_job(device_name, device_ip, credentials_id, location)
                 else:
                     logger.error("Credentials ID not found. Check the provided credentials.")
 
@@ -101,33 +102,33 @@ class Sevone_Onboarding(Job):
         return location
 
     def run_onboarding_job(self, device_name, device_ip, credentials_id, location):
+        job_data = {
+            'location': location.id,
+            'ip_address': device_ip,
+            'credentials': credentials_id,
+            'port': 22,
+            'timeout': 30,
+        }
+        self.execute_onboarding_job(job_data, device_name)
+
+    def execute_onboarding_job(self, job_data, device_name):
         job_class = get_job('nautobot_device_onboarding.jobs.OnboardingTask')
         if job_class:
-            job_data = {
-                'location': location.id,
-                'ip_address': device_ip,
-                'credentials': credentials_id,
-                'port': 22,
-                'timeout': 30,
-            }
-            self.execute_job(job_class, job_data, device_name)
+            try:
+                job_result = JobResult.objects.create(
+                    name='Perform Device Onboarding',
+                    user=self.context.get('user', get_user_model().objects.get(username='admin')),
+                    status='pending'
+                )
+                job_instance = job_class()
+                job_instance.run(data=job_data, commit=True, job_result=job_result)
+                logger.info(
+                    f"Onboarding job for device {device_name} has been enqueued with Job Result ID: {job_result.pk}")
+            except Exception as e:
+                logger.error(f"Error executing job for device {device_name}: {str(e)}")
+                job_result.set_status('failed')
         else:
             logger.error("Onboarding job class not found. Please check the job identifier.")
-
-    def execute_job(self, job_class, job_data, device_name):
-        job_result = JobResult.objects.create(
-            name='Perform Device Onboarding',
-            user=self.context.get('user', get_user_model().objects.get(username='admin')),
-            status='pending'
-        )
-        try:
-            job_instance = job_class()
-            job_instance.run(data=job_data, commit=True, job_result=job_result)
-            logger.info(
-                f"Onboarding job for device {device_name} has been enqueued with Job Result ID: {job_result.pk}")
-        except Exception as e:
-            logger.error(f"Error executing job for device {device_name}: {str(e)}")
-            job_result.set_status('failed')
 
     def get_credentials_id(self, additional_credentials):
         return additional_credentials.id if additional_credentials else None
