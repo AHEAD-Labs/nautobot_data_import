@@ -10,7 +10,6 @@ from nautobot.extras.models import Status, Role
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
 
-
 class Sevone_Onboarding(Job):
     class Meta:
         name = "Device Onboarding from SevOne"
@@ -104,7 +103,7 @@ class Sevone_Onboarding(Job):
         job_data = {
             'location': location_id,
             'ip_address': device_ip,
-            'credentials': credentials_object,  # Passing the object instead of ID
+            'credentials': credentials_id,
             'port': 22,
             'timeout': 30,
         }
