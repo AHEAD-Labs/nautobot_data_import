@@ -103,7 +103,7 @@ class Sevone_Onboarding(Job):
         except Exception as e:
             logger.error(f"Error retrieving credentials: {str(e)}")
             return
-
+        logger.info(f"credentials: {serialized_credentials}")
         job_data = {
             'location': location_id,
             'ip_address': device_ip,
@@ -112,7 +112,7 @@ class Sevone_Onboarding(Job):
             'timeout': 30,
             # Add other fields as None or defaults if necessary
         }
-
+        logger.info(f"job data: {job_data}")
         try:
             job_instance = job_class()
             job_instance.run(**job_data)  # Unpack the job data directly into the run method
