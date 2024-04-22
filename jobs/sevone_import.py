@@ -85,9 +85,9 @@ class Sevone_Onboarding(Job):
         logger.info(f"Preparing to onboard device: {device_name} at IP: {device_ip}")
 
         # Construct the API URL for running the job
-        api_url = f"{self.url}/api/extras/jobs/nautobot_device_onboarding/jobs/OnboardingTask/run/"
+        api_url = f"http://nbotp-davr01:8080/api/extras/jobs/nautobot_device_onboarding/jobs/OnboardingTask/run/"
         headers = {
-            'Authorization': f'Token {self.token}',
+            'Authorization': f'Token 1dd56b6bbc949e0d6e781e63c7b30e87b32a69e9',
             'Content-Type': 'application/json',
             'Accept': 'application/json',
         }
@@ -112,6 +112,9 @@ class Sevone_Onboarding(Job):
         else:
             logger.error(f"Error executing onboarding job for {device_name}: {response.status_code} - {response.text}")
             logger.debug(f"Job data provided: {job_data}")
+
+
+
     def get_credentials_id(self, on_boarding_credentials):
         # Assuming additional_credentials is a SecretsGroup object from which we can get an ID directly
         try:
