@@ -68,6 +68,7 @@ class Sevone_Onboarding(Job):
             logger.error(f"An unexpected error occurred: {str(e)}")
             return []
 
+
     def process_devices(self, devices, additional_credentials):
         for device_data in devices:
             device_name = device_data['name']
@@ -82,40 +83,35 @@ class Sevone_Onboarding(Job):
 
     def run_onboarding_job(self, device_name, device_ip, credentials_id, location_id):
         logger.info(f"Preparing to onboard device: {device_name} at IP: {device_ip}")
-        job_class = get_job('nautobot_device_onboarding.jobs.OnboardingTask')
 
-        if not job_class:
-            logger.error("Onboarding job class not found. Check the job configuration.")
-            return
-
-        try:
-            # Fetch the actual SecretsGroup object using credentials_id
-            credentials_object = SecretsGroup.objects.get(id=credentials_id)
-        except SecretsGroup.DoesNotExist:
-            logger.error(f"Credentials with ID {credentials_id} not found.")
-            return
-        except Exception as e:
-            logger.error(f"Error retrieving credentials: {str(e)}")
-            return
-
-        logger.debug(f"Location ID: {location_id}, Device IP: {device_ip}, Credentials Object: {credentials_object}")
-
-        job_data = {
-            'location': location_id,
-            'ip_address': device_ip,
-            'credentials': str(credentials_id),
-            'port': 22,
-            'timeout': 30,
+        # Construct the API URL for running the job
+        api_url = f"{self.url}/api/extras/jobs/nautobot_device_onboarding/jobs/OnboardingTask/run/"
+        headers = {
+            'Authorization': f'Token {self.token}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
         }
-        logger.debug(f"Job Data: {job_data}")
-        try:
-            job_instance = job_class()
-            job_instance.run(data=job_data, commit=True)
-            logger.info(f"Onboarding job executed successfully for {device_name} with IP {device_ip}.")
-        except Exception as e:
-            logger.error(f"Error executing onboarding job for {device_name}: {str(e)}")
-            logger.debug(f"Job data provided: {job_data}")
 
+        # Prepare the payload for the API request
+        job_data = {
+            'data': {
+                'location': location_id,
+                'ip_address': device_ip,
+                'credentials': credentials_id,
+                'port': 22,
+                'timeout': 30,
+            }
+        }
+
+        # Make the API request to run the job
+        response = requests.post(api_url, headers=headers, json=job_data)
+
+        if response.status_code == 200:
+            logger.info(f"Onboarding job executed successfully for {device_name} with IP {device_ip}.")
+            logger.debug(f"Job response: {response.json()}")
+        else:
+            logger.error(f"Error executing onboarding job for {device_name}: {response.status_code} - {response.text}")
+            logger.debug(f"Job data provided: {job_data}")
     def get_credentials_id(self, on_boarding_credentials):
         # Assuming additional_credentials is a SecretsGroup object from which we can get an ID directly
         try:
