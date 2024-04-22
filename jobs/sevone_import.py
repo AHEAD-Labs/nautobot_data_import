@@ -6,6 +6,7 @@ from nautobot.extras.models import JobResult, SecretsGroup
 from nautobot.dcim.models import Device, Location, Manufacturer, DeviceType, Platform, LocationType
 from nautobot.ipam.models import IPAddress
 from nautobot.extras.models import Status, Role
+from django.core.serializers.json import DjangoJSONEncoder
 
 # Setup the logger using Nautobot's get_task_logger function
 logger = get_task_logger(__name__)
@@ -80,13 +81,22 @@ class Sevone_Onboarding(Job):
                 else:
                     logger.error("Credentials ID not found. Check the provided credentials.")
 
+    def prepare_credentials(credentials_object):
+        # Serialize credentials to a JSON string
+        credentials_data = {
+            'username': credentials_object.get_secret_value(access_type='HTTP(S)', secret_type='username'),
+            'password': credentials_object.get_secret_value(access_type='HTTP(S)', secret_type='password'),
+            'secret': credentials_object.get_secret_value(access_type='HTTP(S)', secret_type='secret', default='')
+        }
+        return json.dumps(credentials_data, cls=DjangoJSONEncoder)
+
     def run_onboarding_job(self, device_name, device_ip, credentials_id, location_id):
         logger.info(f"Preparing to onboard device: {device_name} at IP: {device_ip}")
         job_class = get_job('nautobot_device_onboarding.jobs.OnboardingTask')
 
         try:
-            # Fetch the actual SecretsGroup object using credentials_id
             credentials_object = SecretsGroup.objects.get(id=credentials_id)
+            serialized_credentials = prepare_credentials(credentials_object)
         except SecretsGroup.DoesNotExist:
             logger.error(f"Credentials with ID {credentials_id} not found.")
             return
@@ -94,23 +104,18 @@ class Sevone_Onboarding(Job):
             logger.error(f"Error retrieving credentials: {str(e)}")
             return
 
-        if not job_class:
-            logger.error("Onboarding job class not found. Check the job configuration.")
-            return
-
-        logger.debug(f"Location ID: {location_id}, Device IP: {device_ip}, Credentials ID: {credentials_object}")
-
         job_data = {
             'location': location_id,
             'ip_address': device_ip,
-            'credentials': str(credentials_object),
+            'credentials': serialized_credentials,  # Pass serialized credentials as a string
             'port': 22,
             'timeout': 30,
+            # Add other fields as None or defaults if necessary
         }
-        logger.debug(f"Job Data: {job_data}")
+
         try:
             job_instance = job_class()
-            job_instance.run(data=job_data, commit=True)
+            job_instance.run(**job_data)  # Unpack the job data directly into the run method
             logger.info(f"Onboarding job executed successfully for {device_name} with IP {device_ip}.")
         except Exception as e:
             logger.error(f"Error executing onboarding job for {device_name}: {str(e)}")
