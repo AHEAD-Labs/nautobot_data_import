@@ -85,7 +85,7 @@ class Sevone_Onboarding(Job):
         logger.info(f"Preparing to onboard device: {device_name} at IP: {device_ip}")
 
         # Ensure API URL is correctly formatted
-        api_url = f"http://localhost:8080/api/extras/jobs/nautobot_device_onboarding/jobs/OnboardingTask/run/"
+        api_url = f"http://nbotp-davr01:8080/api/extras/jobs/nautobot_device_onboarding/jobs/OnboardingTask/run/"
         headers = {
             'Authorization': f'Token 1dd56b6bbc949e0d6e781e63c7b30e87b32a69e9',
             'Content-Type': 'application/json',
