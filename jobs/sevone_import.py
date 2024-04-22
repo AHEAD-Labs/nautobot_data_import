@@ -85,7 +85,7 @@ class Sevone_Onboarding(Job):
         logger.info(f"Preparing to onboard device: {device_name} at IP: {device_ip}")
 
         # Ensure API URL is correctly formatted
-        api_url = f"https://nbotp-davr01/api/extras/jobs/nautobot_device_onboarding/jobs/OnboardingTask/run/"
+        api_url = f"https://nbotp-davr01/api/extras/jobs/e97e350a-191a-4694-9448-355e26e0729b/run/"
         headers = {
             'Authorization': f'Token 1dd56b6bbc949e0d6e781e63c7b30e87b32a69e9',
             'Content-Type': 'application/json',
@@ -104,7 +104,7 @@ class Sevone_Onboarding(Job):
         }
 
         # Make the API request to run the job
-        response = requests.post(api_url, headers=headers, json=job_data)
+        response = requests.post(api_url, headers=headers, json=job_data, verify=False)
 
         if response.status_code == 200:
             logger.info(f"Onboarding job executed successfully for {device_name} with IP {device_ip}.")
