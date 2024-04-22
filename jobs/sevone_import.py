@@ -84,20 +84,20 @@ class Sevone_Onboarding(Job):
     def run_onboarding_job(self, device_name, device_ip, credentials_id, location_id):
         logger.info(f"Preparing to onboard device: {device_name} at IP: {device_ip}")
 
-        # Construct the API URL for running the job
-        api_url = f"http://nbotp-davr01:8080/api/extras/jobs/nautobot_device_onboarding/jobs/OnboardingTask/run/"
+        # Ensure API URL is correctly formatted
+        api_url = f"http://localhost:8080/api/extras/jobs/nautobot_device_onboarding/jobs/OnboardingTask/run/"
         headers = {
             'Authorization': f'Token 1dd56b6bbc949e0d6e781e63c7b30e87b32a69e9',
             'Content-Type': 'application/json',
             'Accept': 'application/json',
         }
 
-        # Prepare the payload for the API request
+        # Convert UUID to string for JSON serialization
         job_data = {
             'data': {
-                'location': location_id,
+                'location': str(location_id),  # Convert UUID to string
                 'ip_address': device_ip,
-                'credentials': credentials_id,
+                'credentials': str(credentials_id),  # Convert UUID to string
                 'port': 22,
                 'timeout': 30,
             }
@@ -112,8 +112,6 @@ class Sevone_Onboarding(Job):
         else:
             logger.error(f"Error executing onboarding job for {device_name}: {response.status_code} - {response.text}")
             logger.debug(f"Job data provided: {job_data}")
-
-
 
     def get_credentials_id(self, on_boarding_credentials):
         # Assuming additional_credentials is a SecretsGroup object from which we can get an ID directly
